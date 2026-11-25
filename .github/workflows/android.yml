@@ -28,8 +28,12 @@ jobs:
           MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
         run: |
           ./gradlew --no-daemon -q :app:dependencies --configuration debugRuntimeClasspath > deps.txt
-          if grep -E "com\.google\.android\.gms|com\.google\.firebase" deps.txt; then
+          if grep -qE "com\.google\.android\.gms|com\.google\.firebase" deps.txt; then
             echo "::error::Google Play Services / Firebase dependency found (violates principle 1)"
+            for dep in $(grep -oE "com\.google\.(android\.gms|firebase):[a-z0-9-]+" deps.txt | sort -u | cut -d: -f2); do
+              echo "----- who pulls in $dep:"
+              ./gradlew --no-daemon -q :app:dependencyInsight --configuration debugRuntimeClasspath --dependency "$dep" | head -40
+            done
             exit 1
           fi
           echo "OK: no Google Play Services dependencies."
