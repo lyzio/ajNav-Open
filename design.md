@@ -1,4 +1,4 @@
-# Software Design Document (SDD): ajNav (v1.2)
+# Software Design Document (SDD): ajNav (v1.3)
 
 ## 1. Projektöversikt & Kärnprinciper
 **ajNav** är en modulär, öppen källkods-applikation för Android och Android Auto byggd för elbilsförare. Appen kombinerar turn-by-turn-navigering med realtidsdata från bilen via OBD2 (BLE), molntelemetri, dynamisk laddstoppsplanering, kostnadskalkyl, topografi/väder samt svensk trafikdata.
@@ -186,6 +186,14 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
   * `MainNavigationScreen` (Mapbox `NavigationScreen` / `NavigationTemplate`): Visar karta, svänginstruktioner och en anpassad info-overlay / ActionStrip med **Live SoC %**, **Beräknad ankomst-SoC %**, **Batteritemp (°C)** samt snabbknapp för *"Sök laddare längs rutt"*.
   * `ChargerListScreen` (`PlaceListNavigationTemplate`): Visar de närmaste/bästa laddarna längs rutten (max 6 st) med avstånd, kW, pris och lediga stolpar.
   * `DestinationSearchScreen` (`SearchTemplate`): Röst- och textbaserad destinationssökning via `GeocodingProvider` när bilen står parkerad.
+  * **v0.2-anpassning (beslut D12, 2026-11-25):** Mobilens fria kort ersätts på bilskärmen av standardmallar. Karta, rutt och bilmarkör stylas fritt (LyzLarm: mörk karta, teal rutt, korall markör); hastighet + hastighetsgräns ritas på kartytan. v0.2 omfattar:
+    * `MainNavigationScreen` (`NavigationTemplate`): karta, nästa sväng med filpilar, ankomsttid, återstående sträcka/tid, röst via bilens högtalare. Batterivärden och laddarknapp tillkommer i v0.3–v0.5.
+    * `DestinationSearchScreen` (`SearchTemplate`): röst alltid, tangentbord endast parkerad; max 6 träffar (Photon).
+    * `QuickDestinationsScreen` (`PlaceListNavigationTemplate`/`ListTemplate`): Hem, Jobb och senaste destinationer.
+    * `RoutePreviewScreen` (`RoutePreviewNavigationTemplate`): tid, sträcka och Start-knapp.
+    * **Synk telefon ↔ bil:** en gemensam navigeringssession; resa startad på ena skärmen fortsätter på den andra.
+    * Mapbox-token anges endast på telefonen; saknas den visar bilskärmen "Set up ajNav on your phone".
+    * Om Mapbox Android Auto Components drar in Google-beroenden (CI-spärren) byggs skärmarna direkt på Car App Library i stället.
   * **Notiser (`CarToast`):** Varning vid trafikstörning framåt (Trafikverket) eller om batteriet beräknas nå `< 8 %` före planerat stopp.
 
 ---
@@ -194,7 +202,7 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
 GPS-navigering först, bildata (OBD) i senare versioner. Varje version ska vara körbar och testbar i verkligheten innan nästa påbörjas. Varje version byggs först efter ägarens "Let's build version …" och föregås av en build brief med acceptanskriterier.
 
 1. **v0.1 – Mobilnavigering (endast telefon):** `settings.gradle.kts`, `libs.versions.toml`, `local.properties.example`, `README.md`, Hilt-uppsättning, `:core:model`, `:core:security` (BYOK, `MAPBOX_PUBLIC_TOKEN`), samt `:feature:navigation` (Mapbox Navigation v3, `PhotonGeocodingProvider`) med destinationssökning, karta, rutt och röststyrd turn-by-turn via telefonens egen GPS (utan Google Play Services). Minimal `:app` med Navigering- och Inställningar-flikarna. Även: favoriter Hem/Jobb, senaste destinationer (lagras lokalt i DataStore; Room tillkommer i v0.3), aktuell hastighet + hastighetsgräns (från Mapbox), filvägledning (lane guidance) samt LyzLarm-temat. *Test: kör en verklig rutt med telefonen.*
-2. **v0.2 – Android Auto:** `EvCarAppService`, `automotive_app_desc.xml`, `MainNavigationScreen` och `DestinationSearchScreen`. *Test: DHU-emulator, därefter i bilen.*
+2. **v0.2 – Android Auto:** `EvCarAppService`, `automotive_app_desc.xml`, `MainNavigationScreen`, `DestinationSearchScreen`, `QuickDestinationsScreen` (Hem/Jobb/senaste), `RoutePreviewScreen` samt synk telefon ↔ bil (se 4.7 C). *Test: direkt i den riktiga bilen (stock Android-telefon).*
 3. **v0.3 – Laddstopp utan bilkoppling:** `:feature:vehicles` (`Fiat500e2021Profile` med kapacitet och laddkurva), `:feature:charging` (`OpenChargeMapProvider`, `ChainedTariffProvider`, Room offline-cache), Open-Meteo Elevation, SMHI-väder samt `EvRoutePlannerUseCase` med **manuellt inmatad SoC %** (`TelemetrySource.MANUAL`). Flikarna Operatörer & Priser, `ChargerListScreen` i Android Auto. *Test: planera en verklig resa och jämför med utfallet.*
 4. **v0.4 – OBD-anslutning:** `:core:obd` (`ObdBleManager`, `ReadOnlyObdGuard`), Fiat-profilens `pollingCommands`, `MockVehicleProfile`, `VehicleTelemetryService` (ForegroundService, WakeLock, BLE-behörigheter) och Dashboard-fliken med live-data. Manuell SoC finns kvar som reserv. *Test: anslut till Fiat 500e och verifiera avläsningar (inkl. PID:ar markerade "alt.").*
 5. **v0.5 – Live-planering:** Live-data matar `EvRoutePlannerUseCase` (viktad förbrukning, omplanering vid < 8 %, Coldgate-justering), live-värden i Android Auto, `TrafikverketClient` samt valfri `EnodeClient`. *Test: verkliga resor.*
@@ -203,5 +211,6 @@ GPS-navigering först, bildata (OBD) i senare versioner. Varje version ska vara 
 ---
 
 ## 6. Ändringslogg
+* **v1.3 (2026-11-25):** v0.2-omfång för Android Auto fastställt (D12): standardmallar för karta/turn-by-turn, sök, snabbdestinationer och ruttförhandsvisning, synk telefon ↔ bil. Test direkt i bilen.
 * **v1.2 (2026-11-25):** Godkänt undantag för Mapbox play-services-cronet. v0.1-omfång utökat (favoriter, senaste, hastighet/gräns, filvägledning), UI-tema (LyzLarm), engelskt UI, CI via GitHub Actions. Ny versionsplan: GPS-navigering först (v0.1 telefon, v0.2 Android Auto, v0.3 laddstopp med manuell SoC), OBD i v0.4 och live-planering i v0.5. Dependency Injection fastställd till Hilt. Coldgate-tröskel fastställd till 15 °C (ny profilegenskap `coldgateThresholdCelsius`; `optimalBatteryTempCelsius` = 20 °C används endast för Dashboard-indikatorn). Namnbyte OpenEV Nav → ajNav. Felkodsläsning (DTC) och fordonsdiagnostik borttagen ur scope (`DtcScanner`, `DtcRecord`, `dtc_descriptions.json`, Diagnostik-fliken, DTC-/12V-notiser). OBD begränsat till minimal vitlista: endast data för laddning, förbrukning och navigering (inga `03`/`07`/`19`/`09`/`ATRV`). En utvecklarkonsol för att verifiera nya PID:ar kan övervägas senare.
 * **v1.1:** Ursprunglig version.
