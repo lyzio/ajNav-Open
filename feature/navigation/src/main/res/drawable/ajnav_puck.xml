@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Coral car chevron with ice-white outline (LyzLarm palette) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:fillColor="#4DED4C67"
+        android:pathData="M20,20m-18,0a18,18 0,1 1,36 0a18,18 0,1 1,-36 0" />
+    <path
+        android:fillColor="#EEF3F3"
+        android:pathData="M20,4 L33,34 L20,27 L7,34 Z" />
+    <path
+        android:fillColor="#ED4C67"
+        android:pathData="M20,8.5 L30,31 L20,25 L10,31 Z" />
+</vector>

@@ -1,0 +1,12 @@
+# Copy to local.properties (never commit local.properties).
+
+# Path to your Android SDK (Android Studio fills this in automatically)
+# sdk.dir=/path/to/Android/sdk
+
+# Optional: secret Mapbox token with DOWNLOADS:READ scope, only needed if
+# Mapbox requires authentication to download the Navigation SDK.
+# MAPBOX_DOWNLOADS_TOKEN=sk.xxxxxxxx
+
+# Optional (developers only): pre-fill the public Mapbox token so you don't
+# have to type it into the app. End users enter their own token in Settings.
+# MAPBOX_PUBLIC_TOKEN=pk.xxxxxxxx

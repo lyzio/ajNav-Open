@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AjNav" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ajnav_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    <color name="ajnav_bg">#1B2F33</color>
+    <color name="ajnav_darkest">#0F1A1C</color>
+</resources>

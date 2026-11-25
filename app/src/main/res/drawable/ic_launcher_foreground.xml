@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 108dp adaptive foreground: teal route arc + coral navigation chevron -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#4FB3A9"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M32,76 Q40,48 66,40" />
+    <path
+        android:fillColor="#EEF3F3"
+        android:pathData="M60,30 L80,74 L60,64 L40,74 Z" />
+    <path
+        android:fillColor="#ED4C67"
+        android:pathData="M60,36 L75,70 L60,62 L45,70 Z" />
+</vector>
