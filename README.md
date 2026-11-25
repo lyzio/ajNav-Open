@@ -16,13 +16,15 @@ Open-source navigation for electric cars on Android and Android Auto. No Google 
 3. In the app, go to **Settings** and paste your **Mapbox public token** (`pk.…`) from [console.mapbox.com](https://console.mapbox.com/account/access-tokens/).
 
 ## Android Auto (testers)
-Google's Android Auto app only shows car-template apps like ajNav when they are installed from Google Play. Its "Unknown sources" developer setting covers self-installed music and messaging apps, not navigation apps built with the Car App Library. For self-installed test builds, use **[AARE](https://github.com/prototux/AARE)**, an open-source replacement for the phone side of Android Auto (no root, no Google). ajNav's test builds accept AARE as a host.
+Google's Android Auto app only shows car-template apps like ajNav when they are installed from Google Play. Its "Unknown sources" developer setting covers self-installed music and messaging apps, not navigation apps built with the Car App Library. Two ways to test on the car screen:
 
-1. Install AARE from its [releases page](https://github.com/prototux/AARE/releases) and complete *Finish setting up* in the app.
-2. Open ajNav on the phone once, enter the Mapbox token and allow location.
-3. Optional: use AARE's **Preview car screen** to try ajNav without the car.
-4. Plug the phone into the car's Android Auto USB port. When Android asks which app to use, pick **AARE** (choose "Just once" until you know it works).
-5. If the car screen refuses AARE (some factory head units only trust Google), unplug and pick Android Auto again.
+**A. Google Play internal app sharing (used by the project owner)**
+1. In Play Console, upload the `ajnav-debug-apk` APK under *Test and release → Internal testing → Internal app sharing* and copy the link.
+2. On the phone, turn on internal app sharing once: Play Store → profile → *Settings → About*, tap *Play Store version* 7 times, then turn on *Internal app sharing*.
+3. Uninstall any self-installed ajNav first (the Play copy has a different signature), then open the link on the phone and install.
+4. Connect to the car. ajNav appears in Android Auto's app launcher.
+
+**B. [AARE](https://github.com/prototux/AARE)** — an open-source replacement for the phone side of Android Auto (no root, no Google). ajNav's test builds accept it as a host. Some factory head units refuse it, and Play Protect may warn when installing it.
 
 On the car screen: **Search** (keyboard only while parked), **Places** (Home, Work, recent destinations), route preview with **Start**, and turn-by-turn with **Mute** and **End**. A trip started on the phone continues on the car screen, and the other way round. Do not turn on AARE's *Passenger mode*.
 
