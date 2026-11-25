@@ -16,17 +16,15 @@ Open-source navigation for electric cars on Android and Android Auto. No Google 
 3. In the app, go to **Settings** and paste your **Mapbox public token** (`pk.…`) from [console.mapbox.com](https://console.mapbox.com/account/access-tokens/).
 
 ## Android Auto (testers)
-ajNav is installed outside Google Play, so Android Auto hides it until you allow unknown sources once:
+Google's Android Auto app only shows car-template apps like ajNav when they are installed from Google Play. Its "Unknown sources" developer setting covers self-installed music and messaging apps, not navigation apps built with the Car App Library. For self-installed test builds, use **[AARE](https://github.com/prototux/AARE)**, an open-source replacement for the phone side of Android Auto (no root, no Google). ajNav's test builds accept AARE as a host.
 
-1. On the phone, open **Settings → Connected devices → Connection preferences → Android Auto** (or search settings for "Android Auto").
-2. Scroll to the bottom and tap **Version** about 10 times until "Allow development settings?" appears. Tap **OK**.
-3. Tap **⋮** (top right) → **Developer settings** → tick **Unknown sources**.
-4. Open ajNav on the phone once, enter the Mapbox token and allow location.
-5. Connect the phone to the car. ajNav appears in the Android Auto app launcher.
+1. Install AARE from its [releases page](https://github.com/prototux/AARE/releases) and complete *Finish setting up* in the app.
+2. Open ajNav on the phone once, enter the Mapbox token and allow location.
+3. Optional: use AARE's **Preview car screen** to try ajNav without the car.
+4. Plug the phone into the car's Android Auto USB port. When Android asks which app to use, pick **AARE** (choose "Just once" until you know it works).
+5. If the car screen refuses AARE (some factory head units only trust Google), unplug and pick Android Auto again.
 
-On the car screen: **Search** (keyboard only while parked), **Places** (Home, Work, recent destinations), route preview with **Start**, and turn-by-turn with **Mute** and **End**. While driving you can also say *"Hey Google, navigate to … with ajNav"*. A trip started on the phone continues on the car screen, and the other way round.
-
-Note: Android Auto itself is a Google app. ajNav stays free of Google Play Services, but the phone needs Google's Android Auto app to connect to the car.
+On the car screen: **Search** (keyboard only while parked), **Places** (Home, Work, recent destinations), route preview with **Start**, and turn-by-turn with **Mute** and **End**. A trip started on the phone continues on the car screen, and the other way round. Do not turn on AARE's *Passenger mode*.
 
 ## Build locally
 Requirements: JDK 17 and the Android SDK (API 36).
