@@ -28,15 +28,20 @@ jobs:
           MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
         run: |
           ./gradlew --no-daemon -q :app:dependencies --configuration debugRuntimeClasspath > deps.txt
-          if grep -qE "com\.google\.android\.gms|com\.google\.firebase" deps.txt; then
+          # Approved exception (design.md §1.1): Mapbox Common's optional Cronet provider.
+          ALLOWED="play-services-cronet|play-services-base|play-services-basement|play-services-tasks"
+          grep -E "com\.google\.android\.gms|com\.google\.firebase" deps.txt \
+            | grep -vE "com\.google\.android\.gms:($ALLOWED):" > forbidden.txt || true
+          if [ -s forbidden.txt ]; then
+            cat forbidden.txt
             echo "::error::Google Play Services / Firebase dependency found (violates principle 1)"
-            for dep in $(grep -oE "com\.google\.(android\.gms|firebase):[a-z0-9-]+" deps.txt | sort -u | cut -d: -f2); do
+            for dep in $(grep -oE "com\.google\.(android\.gms|firebase):[a-z0-9-]+" forbidden.txt | sort -u | cut -d: -f2); do
               echo "----- who pulls in $dep:"
               ./gradlew --no-daemon -q :app:dependencyInsight --configuration debugRuntimeClasspath --dependency "$dep" | head -40
             done
             exit 1
           fi
-          echo "OK: no Google Play Services dependencies."
+          echo "OK: no Google Play Services dependencies (apart from the approved Mapbox Cronet exception)."
 
       - uses: actions/upload-artifact@v6
         with:
