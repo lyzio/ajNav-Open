@@ -1,12 +1,12 @@
-# Software Design Document (SDD): OpenEV Nav (v1.1)
+# Software Design Document (SDD): ajNav (v1.2)
 
 ## 1. Projektöversikt & Kärnprinciper
-**OpenEV Nav** är en modulär, öppen källkods-applikation för Android och Android Auto byggd för elbilsförare. Appen kombinerar turn-by-turn-navigering med realtidsdata från bilen via OBD2 (BLE), molntelemetri, dynamisk laddstoppsplanering, kostnadskalkyl, fordonsdiagnostik, topografi/väder samt svensk trafikdata.
+**ajNav** är en modulär, öppen källkods-applikation för Android och Android Auto byggd för elbilsförare. Appen kombinerar turn-by-turn-navigering med realtidsdata från bilen via OBD2 (BLE), molntelemetri, dynamisk laddstoppsplanering, kostnadskalkyl, topografi/väder samt svensk trafikdata.
 
 ### Arkitekturprinciper
 1. **Zero Google Play Services:** Appen får aldrig bero på `com.google.android.gms` (t.ex. `FusedLocationProviderClient` eller Google Maps). All kart-, plats- och bilskärmslogik ska fungera på de-Googled Android (GrapheneOS, LineageOS/microG).
 2. **BYOK (Bring Your Own Key):** Repot innehåller inga API-nycklar. Slutanvändaren matar in sina egna nycklar direkt i appens UI (med möjlighet för utvecklare att ange förval via `local.properties` vid bygge). Nyckelfria öppna API:er används som standard där det är möjligt.
-3. **100 % Read-Only OBD2:** Appen får under inga omständigheter skicka skriv-, konfigurations- eller felkodsraderingskommandon till fordonet (kritiskt för säkerhet och Stellantis SGW-kompatibilitet).
+3. **100 % Read-Only & minimal OBD2:** Appen får under inga omständigheter skicka skriv-, konfigurations- eller felkodsraderingskommandon till fordonet (kritiskt för säkerhet och Stellantis SGW-kompatibilitet). Appen läser **endast** data som behövs för laddning, förbrukning och navigering – inga felkoder (DTC), ingen fordonsdiagnostik och inga övriga OBD-anrop.
 4. **Hög modularitet:** Uppdelad i separata Gradle-moduler med tydliga gränssnitt så att communityt enkelt kan bidra med nya bilprofiler, laddkällor eller regionala API:er via Pull Requests.
 
 ---
@@ -20,19 +20,19 @@
 * **Asynkronitet & State:** Kotlin Coroutines & `StateFlow`.
 * **Nätverk & Serialisering:** Ktor Client + `kotlinx.serialization` (JSON/XML).
 * **Lokal lagring:** Room (SQLite) + Jetpack DataStore (krypterad lagring för API-nycklar).
-* **Dependency Injection:** Hilt eller Koin.
+* **Dependency Injection:** Hilt.
 
 ---
 
 ## 3. Modulär Projektstruktur (Gradle Multi-Module)
 
 ```text
-openev-nav/
+ajnav/
 ├── app/                        # Huvudapp, ForegroundService, Compose UI, CarAppService
 ├── core/
-│   ├── model/                  # Rena Kotlin-dataklasser (VehicleState, ChargerStation, DtcRecord, etc.)
+│   ├── model/                  # Rena Kotlin-dataklasser (VehicleState, ChargerStation, RouteStopPlan, etc.)
 │   ├── security/               # ApiKeyRepository (BYOK), Encrypted DataStore
-│   └── obd/                    # ObdBleManager, ReadOnlyObdGuard, DtcScanner, VehiclePidProfile
+│   └── obd/                    # ObdBleManager, ReadOnlyObdGuard, VehiclePidProfile
 ├── feature/
 │   ├── vehicles/               # Bilprofiler (Fiat500e2021Profile, MockVehicleProfile, etc.)
 │   ├── charging/               # ChargingStationProvider (OCM), ChainedTariffProvider (OCPI/NAP + OCM + Sub)
@@ -49,10 +49,9 @@ openev-nav/
 
 ### 4.1 `:core:model`
 Rena domänmodeller utan Android-beroenden:
-* `VehicleState`: `socPercent: Float?`, `batteryCapacityKwh: Float`, `batteryTempCelsius: Float?`, `batteryPowerKw: Float?`, `voltage12v: Float?`, `baseConsumptionKwhPer100Km: Float`, `weightedConsumptionKwhPer100Km: Float`, `source: TelemetrySource` (`OBD_LIVE`, `ENODE_CLOUD`, `MANUAL`).
+* `VehicleState`: `socPercent: Float?`, `batteryCapacityKwh: Float`, `batteryTempCelsius: Float?`, `batteryPowerKw: Float?`, `baseConsumptionKwhPer100Km: Float`, `weightedConsumptionKwhPer100Km: Float`, `source: TelemetrySource` (`OBD_LIVE`, `ENODE_CLOUD`, `MANUAL`).
 * `ChargeCurveStep`: `upToSocPercent: Int`, `maxPowerKw: Float`.
 * `ChargerStation`: `id: String`, `name: String`, `operatorId: Int?`, `operatorName: String`, `latitude: Double`, `longitude: Double`, `maxPowerKw: Float`, `availablePoints: Int?`, `totalPoints: Int?`, `usageCostRaw: String?`, `estimatedPricePerKwh: Float?`, `currency: String`.
-* `DtcRecord`: `code: String`, `moduleId: String`, `moduleName: String`, `status: DtcStatus` (`CONFIRMED`, `PENDING`), `description: String?`, `firstSeenTimestamp: Long`, `isDismissed: Boolean`.
 * `RouteStopPlan`: `station: ChargerStation`, `arrivalSocPercent: Float`, `targetSocPercent: Float`, `neededKwh: Float`, `estimatedChargeMinutes: Int`, `estimatedCost: Float`, `currency: String`, `isColdgateAdjusted: Boolean`.
 
 ---
@@ -72,7 +71,7 @@ Rena domänmodeller utan Android-beroenden:
 
 ---
 
-### 4.3 `:core:obd` & `:feature:vehicles` (OBDLink CX, Säkerhet & Diagnostik)
+### 4.3 `:core:obd` & `:feature:vehicles` (OBDLink CX & Säkerhet)
 
 #### A. BLE-kommunikation (`ObdBleManager`)
 * Byggt på **Nordic Semiconductor Android BLE Library**.
@@ -81,10 +80,11 @@ Rena domänmodeller utan Android-beroenden:
   * Begär `requestMtu(512)` vid anslutning.
   * Sekventiell kö (Request-Response): Skickar aldrig nästa kommando förrän `>` mottagits eller timeout (300 ms) löpt ut. Minst 150 ms paus mellan anrop för att undvika CAN-bus flooding.
 
-#### B. Hårdvarunära Read-Only-spärr (`ReadOnlyObdGuard`)
-Varje utgående sträng måste passera `ReadOnlyObdGuard.validateOrThrow(cmd)` direkt innan BLE-skrivning:
-* **Tillåtna AT/ST-kommandon:** `ATZ`, `ATE0`, `ATL0`, `ATS0`, `ATH1`, `ATSP6`, `ATRV` (12V-spänning), samt `ATSH xxx` (sätta mottagar-header).
-* **Tillåtna OBD2/UDS-tjänster:** Endast `01` (Live data), `03` (Confirmed DTC), `07` (Pending DTC), `09` (VIN/Fordonsinfo), `19` (UDS ReadDTCInformation) och `22` (UDS ReadDataByIdentifier).
+#### B. Hårdvarunära Read-Only- & minimal-spärr (`ReadOnlyObdGuard`)
+Varje utgående sträng måste passera `ReadOnlyObdGuard.validateOrThrow(cmd)` direkt innan BLE-skrivning. Spärren är en **exakt vitlista** – allt som inte uttryckligen står här blockeras:
+* **Tillåtna AT/ST-kommandon (endast adapter-uppsättning):** `ATZ`, `ATE0`, `ATL0`, `ATS0`, `ATH1`, `ATSP6`, samt `ATSH xxx` (endast headers som aktiv bilprofil deklarerar).
+* **Tillåtna OBD2/UDS-tjänster:** Endast `01` (Live data) och `22` (UDS ReadDataByIdentifier) – och **endast de exakta kommandon som finns i aktiv bilprofils `pollingCommands`** (laddnings-, förbruknings- och navigeringsdata).
+* **Uttryckligen utanför scope (blockeras):** `03`/`07`/`19` (felkoder/DTC), `09` (VIN/Fordonsinfo), `ATRV` (12V-spänning).
 * **Explicit blockerade tjänster:** `04` (Clear DTC), `10` (DiagnosticSessionControl – appen stannar alltid i säker Default Session `0x01`), `11` (ECUReset), `14` (ClearDiagnosticInformation), `27` (SecurityAccess), `2E`/`3D` (Write), `2F`/`31` (IO/Routine Control), `34`/`36`/`37` (Flashing).
 
 #### C. Utbytbara Bilprofiler (`VehiclePidProfile`)
@@ -95,30 +95,22 @@ interface VehiclePidProfile {
     val vehicleMassKg: Float
     val defaultBatteryCapacityKwh: Float
     val optimalBatteryTempCelsius: Float
+    val coldgateThresholdCelsius: Float    // Under denna temp skalas laddeffekten ner
     val chargeCurve: List<ChargeCurveStep> // Icke-linjär laddkurva
-    val ecuModulesForDtc: Map<String, String>
     val pollingCommands: List<ObdCommand>
     fun parseTelemetry(commandId: String, rawHex: String): PartialVehicleTelemetry?
 }
 ```
 * **Standardprofil 1: `Fiat500e2021Profile`**
-  * Massa: `1465f` kg (inkl. förare). Kapacitet: `37.3f` kWh netto (`42.0f` kWh brutto). Optimal batteritemp: `20.0f` °C.
+  * Massa: `1465f` kg (inkl. förare). Kapacitet: `37.3f` kWh netto (`42.0f` kWh brutto). Optimal batteritemp: `20.0f` °C. Coldgate-tröskel: `15.0f` °C.
   * **3-stegs laddkurva:** `0–50 % -> 85 kW`, `50–80 % -> 55 kW`, `80–100 % -> 20 kW`.
   * Protokoll: `ATSP6` (ISO 15765-4 CAN 11/500).
   * Polling (UDS Service `22` mot BECM `ATSH 7E4`):
     * Display SoC (%): `22 20 02` (alt. `22 01 01`)
     * HV Battery Temp (°C): `22 20 05`
-    * HV Voltage & Current (för kW): `22 20 03` & `22 20 04`
-    * 12V System Voltage: `ATRV`
-  * DTC-skanningsmoduler: `7E4` (BECM/Batteri), `7E2` (Elmotor/Inverter), `7E6` (Ombordladdare).
+    * HV Voltage & Current (för kW och förbrukning): `22 20 03` & `22 20 04`
 * **Standardprofil 2: `MockVehicleProfile`**
-  * Simulerar körning, gradvis SoC-minskning, batteritemperatur och valbara test-felkoder för utveckling utan bil.
-
-#### D. Diagnostik & Felkodsläsare (`DtcScanner`)
-* Körs en gång vid anslutning till OBDLink CX samt manuellt på begäran.
-* Skickar UDS `19 02 09` (reportDTCByStatusMask: Confirmed + TestFailed) mot varje ECU-modul i aktiv bilprofil, samt fallback `03` / `07`.
-* Parsar 2-byte/3-byte hex till standardkoder (`P0xxx`, `U0xxx`, `B1xxx`, `C0xxx`) och matchar mot en lokal offline-databas (`assets/dtc_descriptions.json` med fokus på `P0Axx` EV-koder).
-* Inkluderar filter för att dölja harmlösa CAN-bruskoder (`U`-koder) och varnar om 12V-spänningen (`ATRV`) understiger `11.8 V`.
+  * Simulerar körning, gradvis SoC-minskning, batteritemperatur och effekt för utveckling utan bil.
 
 ---
 
@@ -167,7 +159,7 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
 2. **Stationär urval & poängsättning:** Identifierar fönstret där beräknad SoC faller mellan **10 % och 25 %** och rankar laddare baserat på operatörspreferens (`+100p`), pris via `ChainedTariffProvider`, effekt (`+50p` om `>= 150 kW`), avstånd från rutt (`+30p` om `< 1 km`) och live-tillgänglighet (`-200p` om 0 lediga uttag).
 3. **Realistisk laddtid (Laddkurva + Coldgate):**
    * Integrerar laddtiden stegvis över bilprofilens `chargeCurve` (inte bara toppeffekten).
-   * **Coldgate-justering:** Om `VehicleState.batteryTempCelsius` understiger `optimalBatteryTempCelsius` (t.ex. `< 15 °C`) skalas beräknad laddeffekt ner linjärt (ner till 50 % vid `0 °C`) och stoppet flaggas som `isColdgateAdjusted = true`.
+   * **Coldgate-justering:** Om `VehicleState.batteryTempCelsius` understiger bilprofilens `coldgateThresholdCelsius` (`15 °C` för Fiat 500e) skalas beräknad laddeffekt ner linjärt från 100 % vid `15 °C` till 50 % vid `0 °C` (50 % även under `0 °C`) och stoppet flaggas som `isColdgateAdjusted = true`.
 4. **Live-övervakning under körning:** Om faktisk förbrukning gör att beräknad ankomst-SoC sjunker under **8 %**, triggas en automatisk omsökning och användaren får en prompt att lägga till ett tidigare laddstopp.
 
 ---
@@ -178,12 +170,11 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
 * `ForegroundService` (`foregroundServiceType="connectedDevice|location"`) som håller en partiell `PowerManager.WakeLock` under aktiv körning så att GrapheneOS/LineageOS Doze-läge inte dödar BLE-pollingen när telefonskärmen är släckt.
 * Runtime-hantering av Android 12+ BLE-behörigheter (`BLUETOOTH_SCAN` med `neverForLocation`, `BLUETOOTH_CONNECT`), `ACCESS_FINE_LOCATION`, `POST_NOTIFICATIONS` samt prompt för `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
 
-#### B. Mobil-UI (Jetpack Compose – 5 flikar)
-1. **Dashboard:** Live SoC %, batteritemp (med indikator när batteriet nått optimal snabbladdningstemp), aktuell effekt (kW), 12V-spänning, OBD-anslutningsstatus samt snabbknapp för Mock-läge.
+#### B. Mobil-UI (Jetpack Compose – 4 flikar)
+1. **Dashboard:** Live SoC %, batteritemp (med indikator när batteriet nått optimal snabbladdningstemp), aktuell effekt (kW), aktuell förbrukning, OBD-anslutningsstatus samt snabbknapp för Mock-läge.
 2. **Navigering:** Sök destination (Photon/Mapbox), visa rutt + föreslagna laddstopp (med kWh, laddtid inkl. ev. Coldgate-varning, operatör och uppskattad kostnad i kr) samt knapp för att starta navigering.
-3. **Diagnostik:** Lista över avlästa felkoder (DTC) per bilmodul, beskrivning, filter för U-koder, knapp för manuell skanning samt en Read-Only OBD-konsol för verifiering av nya PID:ar.
-4. **Operatörer & Priser:** Lista över OCM-operatörer för val av favoriter samt inmatning av egna abonnemangspriser (kr/kWh).
-5. **Inställningar & API-nycklar:** Val av bilprofil (`Fiat500e2021Profile`, etc.), val av geokodningsmotor (Photon/Mapbox), säkerhetsmarginaler och BYOK-formulär för API-nycklar.
+3. **Operatörer & Priser:** Lista över OCM-operatörer för val av favoriter samt inmatning av egna abonnemangspriser (kr/kWh).
+4. **Inställningar & API-nycklar:** Val av bilprofil (`Fiat500e2021Profile`, etc.), val av geokodningsmotor (Photon/Mapbox), säkerhetsmarginaler och BYOK-formulär för API-nycklar.
 
 #### C. Android Auto (`EvCarAppService` & `MainNavigationScreen`)
 * **Manifest & Deklaration:** Inkluderar `res/xml/automotive_app_desc.xml` (`<uses name="template" />`) samt `<category android:name="androidx.car.app.category.NAVIGATION" />` i `AndroidManifest.xml`.
@@ -191,13 +182,22 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
   * `MainNavigationScreen` (Mapbox `NavigationScreen` / `NavigationTemplate`): Visar karta, svänginstruktioner och en anpassad info-overlay / ActionStrip med **Live SoC %**, **Beräknad ankomst-SoC %**, **Batteritemp (°C)** samt snabbknapp för *"Sök laddare längs rutt"*.
   * `ChargerListScreen` (`PlaceListNavigationTemplate`): Visar de närmaste/bästa laddarna längs rutten (max 6 st) med avstånd, kW, pris och lediga stolpar.
   * `DestinationSearchScreen` (`SearchTemplate`): Röst- och textbaserad destinationssökning via `GeocodingProvider` när bilen står parkerad.
-  * **Notiser (`CarToast`):** Varning vid ny kritisk felkod (DTC), låg 12V-spänning (`< 11.8 V`), trafikstörning framåt (Trafikverket) eller om batteriet beräknas nå `< 8 %` före planerat stopp.
+  * **Notiser (`CarToast`):** Varning vid trafikstörning framåt (Trafikverket) eller om batteriet beräknas nå `< 8 %` före planerat stopp.
 
 ---
 
-## 5. Leveransordning vid kodgenerering
-För att hålla koden ren och kompilerbar utan trunkering ska implementationen delas upp i 4 steg:
-1. **Steg 1 (Grund & Kärnmoduler):** `settings.gradle.kts`, `libs.versions.toml`, `local.properties.example`, `README.md`, samt `:core:model`, `:core:security` och `:core:obd` (inklusive `ReadOnlyObdGuard`, `ObdBleManager` och `DtcScanner`).
-2. **Steg 2 (Bilprofiler & Laddning/Priser):** `:feature:vehicles` (`Fiat500e2021Profile` med laddkurva + `MockVehicleProfile` + `dtc_descriptions.json`) samt `:feature:charging` (`OpenChargeMapProvider` + `ChainedTariffProvider` + Room offline-cache).
-3. **Steg 3 (Navigation, Topografi, Väder & Moln):** `:feature:telemetry-cloud` (Enode), `:feature:traffic-se` (Trafikverket + SMHI) samt `:feature:navigation` (Mapbox v3, Photon/Mapbox Geocoding, Open-Meteo Elevation och `EvRoutePlannerUseCase`).
-4. **Steg 4 (App, Mobil-UI & Android Auto):** `:app` med `AndroidManifest.xml`, `automotive_app_desc.xml`, `VehicleTelemetryService` (med WakeLock & BLE-permissions), samtliga 5 Compose-vyer och `EvCarAppService` (`MainNavigationScreen`, `ChargerListScreen`, `DestinationSearchScreen`).
+## 5. Leveransordning (versionsplan)
+GPS-navigering först, bildata (OBD) i senare versioner. Varje version ska vara körbar och testbar i verkligheten innan nästa påbörjas. Varje version byggs först efter ägarens "Let's build version …" och föregås av en build brief med acceptanskriterier.
+
+1. **v0.1 – Mobilnavigering (endast telefon):** `settings.gradle.kts`, `libs.versions.toml`, `local.properties.example`, `README.md`, Hilt-uppsättning, `:core:model`, `:core:security` (BYOK, `MAPBOX_PUBLIC_TOKEN`), samt `:feature:navigation` (Mapbox Navigation v3, `PhotonGeocodingProvider`) med destinationssökning, karta, rutt och röststyrd turn-by-turn via telefonens egen GPS (utan Google Play Services). Minimal `:app` med Navigering- och Inställningar-flikarna. *Test: kör en verklig rutt med telefonen.*
+2. **v0.2 – Android Auto:** `EvCarAppService`, `automotive_app_desc.xml`, `MainNavigationScreen` och `DestinationSearchScreen`. *Test: DHU-emulator, därefter i bilen.*
+3. **v0.3 – Laddstopp utan bilkoppling:** `:feature:vehicles` (`Fiat500e2021Profile` med kapacitet och laddkurva), `:feature:charging` (`OpenChargeMapProvider`, `ChainedTariffProvider`, Room offline-cache), Open-Meteo Elevation, SMHI-väder samt `EvRoutePlannerUseCase` med **manuellt inmatad SoC %** (`TelemetrySource.MANUAL`). Flikarna Operatörer & Priser, `ChargerListScreen` i Android Auto. *Test: planera en verklig resa och jämför med utfallet.*
+4. **v0.4 – OBD-anslutning:** `:core:obd` (`ObdBleManager`, `ReadOnlyObdGuard`), Fiat-profilens `pollingCommands`, `MockVehicleProfile`, `VehicleTelemetryService` (ForegroundService, WakeLock, BLE-behörigheter) och Dashboard-fliken med live-data. Manuell SoC finns kvar som reserv. *Test: anslut till Fiat 500e och verifiera avläsningar (inkl. PID:ar markerade "alt.").*
+5. **v0.5 – Live-planering:** Live-data matar `EvRoutePlannerUseCase` (viktad förbrukning, omplanering vid < 8 %, Coldgate-justering), live-värden i Android Auto, `TrafikverketClient` samt valfri `EnodeClient`. *Test: verkliga resor.*
+6. **v1.0 – Release** efter verifierade tester i bil.
+
+---
+
+## 6. Ändringslogg
+* **v1.2 (2026-11-25):** Ny versionsplan: GPS-navigering först (v0.1 telefon, v0.2 Android Auto, v0.3 laddstopp med manuell SoC), OBD i v0.4 och live-planering i v0.5. Dependency Injection fastställd till Hilt. Coldgate-tröskel fastställd till 15 °C (ny profilegenskap `coldgateThresholdCelsius`; `optimalBatteryTempCelsius` = 20 °C används endast för Dashboard-indikatorn). Namnbyte OpenEV Nav → ajNav. Felkodsläsning (DTC) och fordonsdiagnostik borttagen ur scope (`DtcScanner`, `DtcRecord`, `dtc_descriptions.json`, Diagnostik-fliken, DTC-/12V-notiser). OBD begränsat till minimal vitlista: endast data för laddning, förbrukning och navigering (inga `03`/`07`/`19`/`09`/`ATRV`). En utvecklarkonsol för att verifiera nya PID:ar kan övervägas senare.
+* **v1.1:** Ursprunglig version.
