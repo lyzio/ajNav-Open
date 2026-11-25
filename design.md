@@ -186,15 +186,18 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
 
 ---
 
-## 5. Leveransordning vid kodgenerering
-För att hålla koden ren och kompilerbar utan trunkering ska implementationen delas upp i 4 steg:
-1. **Steg 1 (Grund & Kärnmoduler):** `settings.gradle.kts`, `libs.versions.toml`, `local.properties.example`, `README.md`, samt `:core:model`, `:core:security` och `:core:obd` (inklusive `ReadOnlyObdGuard` och `ObdBleManager`).
-2. **Steg 2 (Bilprofiler & Laddning/Priser):** `:feature:vehicles` (`Fiat500e2021Profile` med laddkurva + `MockVehicleProfile`) samt `:feature:charging` (`OpenChargeMapProvider` + `ChainedTariffProvider` + Room offline-cache).
-3. **Steg 3 (Navigation, Topografi, Väder & Moln):** `:feature:telemetry-cloud` (Enode), `:feature:traffic-se` (Trafikverket + SMHI) samt `:feature:navigation` (Mapbox v3, Photon/Mapbox Geocoding, Open-Meteo Elevation och `EvRoutePlannerUseCase`).
-4. **Steg 4 (App, Mobil-UI & Android Auto):** `:app` med `AndroidManifest.xml`, `automotive_app_desc.xml`, `VehicleTelemetryService` (med WakeLock & BLE-permissions), samtliga 4 Compose-vyer och `EvCarAppService` (`MainNavigationScreen`, `ChargerListScreen`, `DestinationSearchScreen`).
+## 5. Leveransordning (versionsplan)
+GPS-navigering först, bildata (OBD) i senare versioner. Varje version ska vara körbar och testbar i verkligheten innan nästa påbörjas. Varje version byggs först efter ägarens "Let's build version …" och föregås av en build brief med acceptanskriterier.
+
+1. **v0.1 – Mobilnavigering (endast telefon):** `settings.gradle.kts`, `libs.versions.toml`, `local.properties.example`, `README.md`, Hilt-uppsättning, `:core:model`, `:core:security` (BYOK, `MAPBOX_PUBLIC_TOKEN`), samt `:feature:navigation` (Mapbox Navigation v3, `PhotonGeocodingProvider`) med destinationssökning, karta, rutt och röststyrd turn-by-turn via telefonens egen GPS (utan Google Play Services). Minimal `:app` med Navigering- och Inställningar-flikarna. *Test: kör en verklig rutt med telefonen.*
+2. **v0.2 – Android Auto:** `EvCarAppService`, `automotive_app_desc.xml`, `MainNavigationScreen` och `DestinationSearchScreen`. *Test: DHU-emulator, därefter i bilen.*
+3. **v0.3 – Laddstopp utan bilkoppling:** `:feature:vehicles` (`Fiat500e2021Profile` med kapacitet och laddkurva), `:feature:charging` (`OpenChargeMapProvider`, `ChainedTariffProvider`, Room offline-cache), Open-Meteo Elevation, SMHI-väder samt `EvRoutePlannerUseCase` med **manuellt inmatad SoC %** (`TelemetrySource.MANUAL`). Flikarna Operatörer & Priser, `ChargerListScreen` i Android Auto. *Test: planera en verklig resa och jämför med utfallet.*
+4. **v0.4 – OBD-anslutning:** `:core:obd` (`ObdBleManager`, `ReadOnlyObdGuard`), Fiat-profilens `pollingCommands`, `MockVehicleProfile`, `VehicleTelemetryService` (ForegroundService, WakeLock, BLE-behörigheter) och Dashboard-fliken med live-data. Manuell SoC finns kvar som reserv. *Test: anslut till Fiat 500e och verifiera avläsningar (inkl. PID:ar markerade "alt.").*
+5. **v0.5 – Live-planering:** Live-data matar `EvRoutePlannerUseCase` (viktad förbrukning, omplanering vid < 8 %, Coldgate-justering), live-värden i Android Auto, `TrafikverketClient` samt valfri `EnodeClient`. *Test: verkliga resor.*
+6. **v1.0 – Release** efter verifierade tester i bil.
 
 ---
 
 ## 6. Ändringslogg
-* **v1.2 (2026-11-25):** Dependency Injection fastställd till Hilt. Coldgate-tröskel fastställd till 15 °C (ny profilegenskap `coldgateThresholdCelsius`; `optimalBatteryTempCelsius` = 20 °C används endast för Dashboard-indikatorn). Namnbyte OpenEV Nav → ajNav. Felkodsläsning (DTC) och fordonsdiagnostik borttagen ur scope (`DtcScanner`, `DtcRecord`, `dtc_descriptions.json`, Diagnostik-fliken, DTC-/12V-notiser). OBD begränsat till minimal vitlista: endast data för laddning, förbrukning och navigering (inga `03`/`07`/`19`/`09`/`ATRV`). En utvecklarkonsol för att verifiera nya PID:ar kan övervägas senare.
+* **v1.2 (2026-11-25):** Ny versionsplan: GPS-navigering först (v0.1 telefon, v0.2 Android Auto, v0.3 laddstopp med manuell SoC), OBD i v0.4 och live-planering i v0.5. Dependency Injection fastställd till Hilt. Coldgate-tröskel fastställd till 15 °C (ny profilegenskap `coldgateThresholdCelsius`; `optimalBatteryTempCelsius` = 20 °C används endast för Dashboard-indikatorn). Namnbyte OpenEV Nav → ajNav. Felkodsläsning (DTC) och fordonsdiagnostik borttagen ur scope (`DtcScanner`, `DtcRecord`, `dtc_descriptions.json`, Diagnostik-fliken, DTC-/12V-notiser). OBD begränsat till minimal vitlista: endast data för laddning, förbrukning och navigering (inga `03`/`07`/`19`/`09`/`ATRV`). En utvecklarkonsol för att verifiera nya PID:ar kan övervägas senare.
 * **v1.1:** Ursprunglig version.
