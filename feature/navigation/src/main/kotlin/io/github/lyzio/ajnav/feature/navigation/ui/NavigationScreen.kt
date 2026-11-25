@@ -242,10 +242,13 @@ fun NavigationScreen(
                 ) { Icon(Icons.Filled.MyLocation, contentDescription = "Re-centre") }
             }
             when {
-                active && nav.arrived -> ArrivedCard(destination) {
-                    session.stopNavigation()
-                    destination = null
-                }
+                active && nav.arrived -> ArrivedCard(
+                    place = destination,
+                    onDone = {
+                        session.stopNavigation()
+                        destination = null
+                    },
+                )
                 active -> EtaStrip(
                     progress = nav.progress,
                     voiceEnabled = voiceOn,
