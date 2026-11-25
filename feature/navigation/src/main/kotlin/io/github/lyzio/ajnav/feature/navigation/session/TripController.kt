@@ -4,15 +4,10 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Color
 import androidx.core.content.ContextCompat
 import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.common.location.Location
 import com.mapbox.geojson.Point
-import com.mapbox.maps.EdgeInsets
-import com.mapbox.maps.MapView
-import com.mapbox.maps.Style
-import com.mapbox.maps.plugin.animation.camera
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
 import com.mapbox.navigation.base.extensions.applyLanguageAndVoiceUnitOptions
 import com.mapbox.navigation.base.formatter.DistanceFormatterOptions
@@ -34,112 +29,75 @@ import com.mapbox.navigation.core.trip.session.TripSessionState
 import com.mapbox.navigation.core.trip.session.VoiceInstructionsObserver
 import com.mapbox.navigation.tripdata.maneuver.api.MapboxManeuverApi
 import com.mapbox.navigation.ui.base.util.MapboxNavigationConsumer
-import com.mapbox.navigation.ui.maps.camera.NavigationCamera
-import com.mapbox.navigation.ui.maps.camera.data.MapboxNavigationViewportDataSource
-import com.mapbox.navigation.ui.maps.camera.lifecycle.NavigationBasicGesturesHandler
-import com.mapbox.navigation.ui.maps.camera.state.NavigationCameraState
-import com.mapbox.navigation.ui.maps.location.NavigationLocationProvider
-import com.mapbox.navigation.ui.maps.route.RouteLayerConstants
-import com.mapbox.navigation.ui.maps.route.arrow.api.MapboxRouteArrowApi
-import com.mapbox.navigation.ui.maps.route.arrow.api.MapboxRouteArrowView
-import com.mapbox.navigation.ui.maps.route.arrow.model.RouteArrowOptions
-import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineApi
-import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineView
-import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineApiOptions
-import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineViewOptions
-import com.mapbox.navigation.ui.maps.route.line.model.RouteLineColorResources
 import com.mapbox.navigation.voice.api.MapboxSpeechApi
 import com.mapbox.navigation.voice.api.MapboxVoiceInstructionsPlayer
 import com.mapbox.navigation.voice.model.SpeechAnnouncement
+import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.lyzio.ajnav.core.model.GeoPoint
+import io.github.lyzio.ajnav.core.model.Place
+import io.github.lyzio.ajnav.feature.navigation.data.NavPreferencesRepository
 import java.util.Locale
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
- * Owns the Mapbox map + navigation wiring for one MapView and exposes plain UI state.
+ * The one shared trip for the whole app (v0.2). Both the phone screen and the Android Auto
+ * screen read [state] and call the same actions, so a trip started on one shows on the other.
+ * Map drawing lives in [MapRenderer]; there is one renderer per screen.
+ *
  * Location comes from Mapbox's location service, which uses Android's own LocationManager
  * because Google Play Services is never bundled (principle 1).
  */
-class NavigationSession(
-    private val context: Context,
-    private val mapView: MapView,
+@Singleton
+class TripController @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val prefs: NavPreferencesRepository,
 ) : MapboxNavigationObserver {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _state = MutableStateFlow(NavUiState())
     val state: StateFlow<NavUiState> = _state.asStateFlow()
 
-    var voiceEnabled: Boolean = true
-        set(value) {
-            field = value
-            if (!value) voicePlayer.clear()
-        }
+    private val _previewRoutes = MutableStateFlow<List<NavigationRoute>>(emptyList())
+    private val _activeRoutes = MutableStateFlow<List<NavigationRoute>>(emptyList())
+
+    /** The routes every map should draw: the active route, or else the preview. */
+    val routesToDraw: StateFlow<List<NavigationRoute>> =
+        combine(_activeRoutes, _previewRoutes) { active, preview -> active.ifEmpty { preview } }
+            .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    private val _voiceEnabled = MutableStateFlow(true)
+    val voiceEnabled: StateFlow<Boolean> = _voiceEnabled.asStateFlow()
 
     private var mapboxNavigation: MapboxNavigation? = null
     private var lastLocation: Location? = null
-    private var previewRoutes: List<NavigationRoute> = emptyList()
     private var routeRequestId: Long? = null
-    private var hasCenteredOnce = false
 
-    private val density = context.resources.displayMetrics.density
     private val language = Locale.getDefault().toLanguageTag()
-
-    // --- Map / camera ---
-    private val navigationLocationProvider = NavigationLocationProvider()
-    private val viewportDataSource = MapboxNavigationViewportDataSource(mapView.mapboxMap).apply {
-        followingPadding = EdgeInsets(200.0 * density, 40.0 * density, 140.0 * density, 40.0 * density)
-        overviewPadding = EdgeInsets(140.0 * density, 40.0 * density, 260.0 * density, 40.0 * density)
-    }
-    private val navigationCamera = NavigationCamera(mapView.mapboxMap, mapView.camera, viewportDataSource)
-
-    // --- Route line (LyzLarm teal) ---
-    private val routeLineApi = MapboxRouteLineApi(MapboxRouteLineApiOptions.Builder().build())
-    private val routeLineView = MapboxRouteLineView(
-        MapboxRouteLineViewOptions.Builder(context)
-            .routeLineColorResources(
-                RouteLineColorResources.Builder()
-                    .routeDefaultColor(TEAL)
-                    .routeLowCongestionColor(TEAL)
-                    .routeUnknownCongestionColor(TEAL)
-                    .routeCasingColor(PILL)
-                    .build(),
-            )
-            .routeLineBelowLayerId("road-label")
-            .build(),
+    private val maneuverApi = MapboxManeuverApi(
+        MapboxDistanceFormatter(DistanceFormatterOptions.Builder(context).build()),
     )
-    private val routeArrowApi = MapboxRouteArrowApi()
-    private val routeArrowView = MapboxRouteArrowView(
-        RouteArrowOptions.Builder(context)
-            .withAboveLayerId(RouteLayerConstants.TOP_LEVEL_ROUTE_LINE_LAYER_ID)
-            .build(),
-    )
-
-    // --- Trip data / voice ---
-    private val distanceFormatterOptions = DistanceFormatterOptions.Builder(context).build()
-    private val maneuverApi = MapboxManeuverApi(MapboxDistanceFormatter(distanceFormatterOptions))
-    private val speechApi = MapboxSpeechApi(context, language)
-    private val voicePlayer = MapboxVoiceInstructionsPlayer(context, language)
+    // Created on first use, after the Mapbox token has been set (the car may start the app first).
+    private val speechApi by lazy { MapboxSpeechApi(context, language) }
+    private val voicePlayer by lazy { MapboxVoiceInstructionsPlayer(context, language) }
+    private var voiceUsed = false
     private val voicePlayerCallback = MapboxNavigationConsumer<SpeechAnnouncement> { speechApi.clean(it) }
 
     init {
-        mapView.camera.addCameraAnimationsLifecycleListener(NavigationBasicGesturesHandler(navigationCamera))
-        navigationCamera.registerNavigationCameraStateChangeObserver { camState ->
-            val following = camState == NavigationCameraState.FOLLOWING ||
-                camState == NavigationCameraState.TRANSITION_TO_FOLLOWING
-            _state.update { it.copy(cameraFollowing = following) }
-        }
-    }
-
-    /** The location provider the map's puck should use. */
-    val locationProvider: NavigationLocationProvider get() = navigationLocationProvider
-
-    fun onStyleLoaded(@Suppress("UNUSED_PARAMETER") style: Style) {
-        // Re-draw routes if the style was (re)loaded while a route exists.
-        val routes = mapboxNavigation?.getNavigationRoutes().orEmpty().ifEmpty { previewRoutes }
-        if (routes.isNotEmpty()) drawRoutes(routes)
+        scope.launch { prefs.voiceEnabled.collect { _voiceEnabled.value = it } }
     }
 
     // ---------------------------------------------------------------- lifecycle
@@ -163,31 +121,27 @@ class NavigationSession(
         this.mapboxNavigation = null
     }
 
+    fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
     @SuppressLint("MissingPermission")
     fun startTripSessionIfPermitted() {
         val nav = mapboxNavigation ?: return
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
-        if (granted && nav.getTripSessionState() != TripSessionState.STARTED) {
+        if (hasLocationPermission() && nav.getTripSessionState() != TripSessionState.STARTED) {
             nav.startTripSession()
         }
     }
 
-    fun destroy() {
-        routeLineApi.cancel()
-        routeLineView.cancel()
-        maneuverApi.cancel()
-        speechApi.cancel()
-        voicePlayer.shutdown()
-    }
-
     // ---------------------------------------------------------------- actions
 
-    fun previewRoute(destination: GeoPoint) {
+    /** Ask for a route to [place] and show it as a preview on every screen. */
+    fun previewRoute(place: Place) {
         val nav = mapboxNavigation ?: return showMessage("Navigation is not ready yet")
         val origin = lastLocation ?: return showMessage("Waiting for GPS position…")
         routeRequestId?.let { nav.cancelRouteRequest(it) }
-        _state.update { it.copy(mode = NavMode.ROUTING, message = null, preview = null) }
+        _previewRoutes.value = emptyList()
+        _state.update { it.copy(mode = NavMode.ROUTING, destination = place, message = null, preview = null) }
 
         val options = RouteOptions.builder()
             .applyDefaultNavigationOptions()
@@ -195,7 +149,7 @@ class NavigationSession(
             .coordinatesList(
                 listOf(
                     Point.fromLngLat(origin.longitude, origin.latitude),
-                    Point.fromLngLat(destination.longitude, destination.latitude),
+                    Point.fromLngLat(place.point.longitude, place.point.latitude),
                 ),
             )
             .alternatives(false)
@@ -205,11 +159,7 @@ class NavigationSession(
             override fun onRoutesReady(routes: List<NavigationRoute>, routerOrigin: String) {
                 routeRequestId = null
                 val route = routes.firstOrNull() ?: return onNoRoute("No route found")
-                previewRoutes = routes
-                drawRoutes(routes)
-                viewportDataSource.onRouteChanged(route)
-                viewportDataSource.evaluate()
-                navigationCamera.requestNavigationCameraToOverview()
+                _previewRoutes.value = routes
                 _state.update {
                     it.copy(
                         mode = NavMode.PREVIEW,
@@ -230,35 +180,46 @@ class NavigationSession(
     }
 
     fun clearPreview() {
+        if (_state.value.mode == NavMode.ACTIVE) return
         routeRequestId?.let { mapboxNavigation?.cancelRouteRequest(it) }
-        previewRoutes = emptyList()
-        clearRouteGraphics()
-        navigationCamera.requestNavigationCameraToFollowing()
-        _state.update { it.copy(mode = NavMode.FREE_DRIVE, preview = null) }
+        routeRequestId = null
+        _previewRoutes.value = emptyList()
+        _state.update { it.copy(mode = NavMode.FREE_DRIVE, preview = null, destination = null) }
     }
 
     fun startNavigation() {
         val nav = mapboxNavigation ?: return
-        if (previewRoutes.isEmpty()) return
-        nav.setNavigationRoutes(previewRoutes)
-        previewRoutes = emptyList()
-        navigationCamera.requestNavigationCameraToFollowing()
-        _state.update { it.copy(mode = NavMode.ACTIVE, preview = null, arrived = false) }
+        val routes = _previewRoutes.value
+        if (routes.isEmpty()) return
+        nav.setNavigationRoutes(routes)
+        _previewRoutes.value = emptyList()
+        _state.value.destination?.let { place -> scope.launch { prefs.addRecent(place) } }
+        _state.update { it.copy(mode = NavMode.ACTIVE, preview = null, arrived = false, maneuver = null, progress = null) }
     }
 
     fun stopNavigation() {
+        routeRequestId?.let { mapboxNavigation?.cancelRouteRequest(it) }
+        routeRequestId = null
         mapboxNavigation?.setNavigationRoutes(emptyList())
-        previewRoutes = emptyList()
-        voicePlayer.clear()
-        clearRouteGraphics()
-        navigationCamera.requestNavigationCameraToFollowing()
+        _previewRoutes.value = emptyList()
+        _activeRoutes.value = emptyList()
+        if (voiceUsed) voicePlayer.clear()
         _state.update {
-            it.copy(mode = NavMode.FREE_DRIVE, maneuver = null, progress = null, preview = null, arrived = false)
+            it.copy(
+                mode = NavMode.FREE_DRIVE,
+                maneuver = null,
+                progress = null,
+                preview = null,
+                arrived = false,
+                destination = null,
+            )
         }
     }
 
-    fun recenter() {
-        navigationCamera.requestNavigationCameraToFollowing()
+    fun setVoiceEnabled(enabled: Boolean) {
+        _voiceEnabled.value = enabled
+        if (!enabled && voiceUsed) voicePlayer.clear()
+        scope.launch { prefs.setVoiceEnabled(enabled) }
     }
 
     fun consumeMessage() {
@@ -273,14 +234,6 @@ class NavigationSession(
         override fun onNewLocationMatcherResult(locationMatcherResult: LocationMatcherResult) {
             val location = locationMatcherResult.enhancedLocation
             lastLocation = location
-            navigationLocationProvider.changePosition(location, locationMatcherResult.keyPoints)
-            viewportDataSource.onLocationChanged(location)
-            viewportDataSource.evaluate()
-            if (!hasCenteredOnce) {
-                hasCenteredOnce = true
-                navigationCamera.requestNavigationCameraToFollowing()
-            }
-
             val speedKmh = location.speed?.let { (it * 3.6).roundToInt() }
             val limitInfo = locationMatcherResult.speedLimitInfo
             val limitKmh = limitInfo.speed?.let { limit ->
@@ -301,35 +254,21 @@ class NavigationSession(
     }
 
     private val routesObserver = RoutesObserver { result ->
-        val routes = result.navigationRoutes
-        if (routes.isNotEmpty()) {
-            drawRoutes(routes) // also covers automatic re-routes
-            viewportDataSource.onRouteChanged(routes.first())
-        } else if (previewRoutes.isEmpty()) {
-            clearRouteGraphics()
-            viewportDataSource.clearRouteData()
-        }
-        viewportDataSource.evaluate()
+        // Also covers automatic re-routes.
+        _activeRoutes.value = result.navigationRoutes
     }
 
     private val routeProgressObserver = RouteProgressObserver { progress ->
-        viewportDataSource.onRouteProgressChanged(progress)
-        viewportDataSource.evaluate()
-
-        mapView.mapboxMap.style?.let { style ->
-            routeArrowView.renderManeuverUpdate(style, routeArrowApi.addUpcomingManeuverArrow(progress))
-        }
-        routeLineApi.updateWithRouteProgress(progress) { update ->
-            mapView.mapboxMap.style?.let { routeLineView.renderRouteLineUpdate(it, update) }
-        }
-
         val maneuver = maneuverApi.getManeuvers(progress).value?.firstOrNull()?.let { m ->
             val remaining = m.stepDistance.distanceRemaining ?: m.stepDistance.totalDistance
             ManeuverUi(
                 primaryText = m.primary.text,
                 distanceText = m.stepDistance.distanceFormatter.formatDistance(remaining).toString(),
+                distanceRemainingM = remaining,
                 type = m.primary.type,
                 modifier = m.primary.modifier,
+                degrees = m.primary.degrees,
+                drivingSide = m.primary.drivingSide,
                 lanes = m.laneGuidance?.allLanes.orEmpty().map { lane ->
                     LaneUi(lane.directions, lane.isActive, lane.activeDirection)
                 },
@@ -344,7 +283,8 @@ class NavigationSession(
     }
 
     private val voiceInstructionsObserver = VoiceInstructionsObserver { instructions ->
-        if (!voiceEnabled) return@VoiceInstructionsObserver
+        if (!_voiceEnabled.value) return@VoiceInstructionsObserver
+        voiceUsed = true
         speechApi.generate(instructions) { expected ->
             val announcement = expected.value?.announcement ?: expected.error?.fallback
             announcement?.let { voicePlayer.play(it, voicePlayerCallback) }
@@ -361,23 +301,9 @@ class NavigationSession(
 
     // ---------------------------------------------------------------- helpers
 
-    private fun drawRoutes(routes: List<NavigationRoute>) {
-        routeLineApi.setNavigationRoutes(routes) { value ->
-            mapView.mapboxMap.style?.let { routeLineView.renderRouteDrawData(it, value) }
-        }
-    }
-
-    private fun clearRouteGraphics() {
-        routeLineApi.clearRouteLine { value ->
-            mapView.mapboxMap.style?.let { routeLineView.renderClearRouteLineValue(it, value) }
-        }
-        mapView.mapboxMap.style?.let { routeArrowView.render(it, routeArrowApi.clearArrows()) }
-        viewportDataSource.clearRouteData()
-        viewportDataSource.evaluate()
-    }
-
     private fun onNoRoute(message: String) {
-        _state.update { it.copy(mode = NavMode.FREE_DRIVE, preview = null, message = message) }
+        _previewRoutes.value = emptyList()
+        _state.update { it.copy(mode = NavMode.FREE_DRIVE, preview = null, destination = null, message = message) }
     }
 
     private fun showMessage(message: String) {
@@ -389,9 +315,4 @@ class NavigationSession(
         distanceRemainingM = distanceRemaining.toDouble(),
         etaEpochMs = System.currentTimeMillis() + (durationRemaining * 1000).toLong(),
     )
-
-    private companion object {
-        val TEAL = Color.parseColor("#4FB3A9")
-        val PILL = Color.parseColor("#006266")
-    }
 }

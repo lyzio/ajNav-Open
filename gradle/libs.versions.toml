@@ -12,12 +12,16 @@ ktor = "3.2.3"
 serialization = "1.9.0"
 coroutines = "1.10.2"
 mapboxNavigation = "3.35.1"
+# Must match the Maps SDK version Navigation 3.35.1 is built on (11.35.1).
+mapboxMaps = "11.35.1"
+carApp = "1.7.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
@@ -39,6 +43,9 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 
 # Mapbox Navigation SDK v3 (NDK 27 artifacts: 16 KB page-size support)
 mapbox-navigation = { module = "com.mapbox.navigationcore:android-ndk27", version.ref = "mapboxNavigation" }
+# Android Auto (v0.2): Mapbox's car map surface + Google's open-source Car App Library (AndroidX, no Play Services)
+mapbox-maps-androidauto = { module = "com.mapbox.extension:maps-androidauto-ndk27", version.ref = "mapboxMaps" }
+androidx-car-app = { module = "androidx.car.app:app", version.ref = "carApp" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

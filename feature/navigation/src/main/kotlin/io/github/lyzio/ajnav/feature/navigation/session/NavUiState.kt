@@ -1,6 +1,7 @@
 package io.github.lyzio.ajnav.feature.navigation.session
 
 import io.github.lyzio.ajnav.core.model.GeoPoint
+import io.github.lyzio.ajnav.core.model.Place
 
 enum class NavMode { FREE_DRIVE, ROUTING, PREVIEW, ACTIVE }
 
@@ -13,8 +14,11 @@ data class LaneUi(
 data class ManeuverUi(
     val primaryText: String,
     val distanceText: String,
+    val distanceRemainingM: Double = 0.0,
     val type: String?,
     val modifier: String?,
+    val degrees: Double? = null,
+    val drivingSide: String? = null,
     val lanes: List<LaneUi>,
 )
 
@@ -29,9 +33,10 @@ data class RouteSummary(
     val distanceM: Double,
 )
 
-/** Everything the Compose overlays need from the Mapbox session. */
+/** The shared trip state, read by both the phone and the car screen. */
 data class NavUiState(
     val mode: NavMode = NavMode.FREE_DRIVE,
+    val destination: Place? = null,
     val location: GeoPoint? = null,
     val speedKmh: Int? = null,
     val speedLimitKmh: Int? = null,
@@ -39,6 +44,5 @@ data class NavUiState(
     val progress: ProgressUi? = null,
     val preview: RouteSummary? = null,
     val arrived: Boolean = false,
-    val cameraFollowing: Boolean = true,
     val message: String? = null,
 )

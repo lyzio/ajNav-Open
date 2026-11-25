@@ -26,12 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.mapbox.common.MapboxOptions
-import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.core.lifecycle.MapboxNavigationApp
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.lyzio.ajnav.core.security.ApiKey
 import io.github.lyzio.ajnav.core.security.ApiKeyRepository
+import io.github.lyzio.ajnav.feature.navigation.session.MapboxBootstrap
 import io.github.lyzio.ajnav.feature.navigation.ui.NavigationScreen
 import io.github.lyzio.ajnav.feature.navigation.ui.theme.AjColors
 import io.github.lyzio.ajnav.feature.navigation.ui.theme.AjNavTheme
@@ -44,6 +43,7 @@ import kotlinx.coroutines.flow.map
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var apiKeys: ApiKeyRepository
+    @Inject lateinit var mapboxBootstrap: MapboxBootstrap
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,10 +63,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun configureMapbox(token: String): Boolean {
-        MapboxOptions.accessToken = token
-        if (!MapboxNavigationApp.isSetup()) {
-            MapboxNavigationApp.setup(NavigationOptions.Builder(applicationContext).build())
-        }
+        mapboxBootstrap.ensure(token)
         MapboxNavigationApp.attach(this)
         return true
     }

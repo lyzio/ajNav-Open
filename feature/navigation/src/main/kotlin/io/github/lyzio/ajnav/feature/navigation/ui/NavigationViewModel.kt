@@ -8,6 +8,7 @@ import io.github.lyzio.ajnav.core.model.GeoPoint
 import io.github.lyzio.ajnav.core.model.Place
 import io.github.lyzio.ajnav.feature.navigation.data.NavPreferencesRepository
 import io.github.lyzio.ajnav.feature.navigation.geocoding.GeocodingProvider
+import io.github.lyzio.ajnav.feature.navigation.session.TripController
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -30,14 +31,14 @@ sealed interface SearchState {
 class NavigationViewModel @Inject constructor(
     private val geocoding: GeocodingProvider,
     private val prefs: NavPreferencesRepository,
+    /** The shared trip (also used by Android Auto). */
+    val trip: TripController,
 ) : ViewModel() {
 
     val favourites: StateFlow<Map<FavouriteSlot, Place>> =
         prefs.favourites.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val recents: StateFlow<List<Place>> =
         prefs.recents.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val voiceEnabled: StateFlow<Boolean> =
-        prefs.voiceEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
@@ -75,9 +76,5 @@ class NavigationViewModel @Inject constructor(
 
     fun setFavourite(slot: FavouriteSlot, place: Place) {
         viewModelScope.launch { prefs.setFavourite(slot, place) }
-    }
-
-    fun addRecent(place: Place) {
-        viewModelScope.launch { prefs.addRecent(place) }
     }
 }
