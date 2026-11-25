@@ -20,7 +20,7 @@
 * **Asynkronitet & State:** Kotlin Coroutines & `StateFlow`.
 * **Nätverk & Serialisering:** Ktor Client + `kotlinx.serialization` (JSON/XML).
 * **Lokal lagring:** Room (SQLite) + Jetpack DataStore (krypterad lagring för API-nycklar).
-* **Dependency Injection:** Hilt eller Koin.
+* **Dependency Injection:** Hilt.
 
 ---
 
@@ -95,13 +95,14 @@ interface VehiclePidProfile {
     val vehicleMassKg: Float
     val defaultBatteryCapacityKwh: Float
     val optimalBatteryTempCelsius: Float
+    val coldgateThresholdCelsius: Float    // Under denna temp skalas laddeffekten ner
     val chargeCurve: List<ChargeCurveStep> // Icke-linjär laddkurva
     val pollingCommands: List<ObdCommand>
     fun parseTelemetry(commandId: String, rawHex: String): PartialVehicleTelemetry?
 }
 ```
 * **Standardprofil 1: `Fiat500e2021Profile`**
-  * Massa: `1465f` kg (inkl. förare). Kapacitet: `37.3f` kWh netto (`42.0f` kWh brutto). Optimal batteritemp: `20.0f` °C.
+  * Massa: `1465f` kg (inkl. förare). Kapacitet: `37.3f` kWh netto (`42.0f` kWh brutto). Optimal batteritemp: `20.0f` °C. Coldgate-tröskel: `15.0f` °C.
   * **3-stegs laddkurva:** `0–50 % -> 85 kW`, `50–80 % -> 55 kW`, `80–100 % -> 20 kW`.
   * Protokoll: `ATSP6` (ISO 15765-4 CAN 11/500).
   * Polling (UDS Service `22` mot BECM `ATSH 7E4`):
@@ -158,7 +159,7 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
 2. **Stationär urval & poängsättning:** Identifierar fönstret där beräknad SoC faller mellan **10 % och 25 %** och rankar laddare baserat på operatörspreferens (`+100p`), pris via `ChainedTariffProvider`, effekt (`+50p` om `>= 150 kW`), avstånd från rutt (`+30p` om `< 1 km`) och live-tillgänglighet (`-200p` om 0 lediga uttag).
 3. **Realistisk laddtid (Laddkurva + Coldgate):**
    * Integrerar laddtiden stegvis över bilprofilens `chargeCurve` (inte bara toppeffekten).
-   * **Coldgate-justering:** Om `VehicleState.batteryTempCelsius` understiger `optimalBatteryTempCelsius` (t.ex. `< 15 °C`) skalas beräknad laddeffekt ner linjärt (ner till 50 % vid `0 °C`) och stoppet flaggas som `isColdgateAdjusted = true`.
+   * **Coldgate-justering:** Om `VehicleState.batteryTempCelsius` understiger bilprofilens `coldgateThresholdCelsius` (`15 °C` för Fiat 500e) skalas beräknad laddeffekt ner linjärt från 100 % vid `15 °C` till 50 % vid `0 °C` (50 % även under `0 °C`) och stoppet flaggas som `isColdgateAdjusted = true`.
 4. **Live-övervakning under körning:** Om faktisk förbrukning gör att beräknad ankomst-SoC sjunker under **8 %**, triggas en automatisk omsökning och användaren får en prompt att lägga till ett tidigare laddstopp.
 
 ---
@@ -195,5 +196,5 @@ För att hålla koden ren och kompilerbar utan trunkering ska implementationen d
 ---
 
 ## 6. Ändringslogg
-* **v1.2 (2026-11-25):** Namnbyte OpenEV Nav → ajNav. Felkodsläsning (DTC) och fordonsdiagnostik borttagen ur scope (`DtcScanner`, `DtcRecord`, `dtc_descriptions.json`, Diagnostik-fliken, DTC-/12V-notiser). OBD begränsat till minimal vitlista: endast data för laddning, förbrukning och navigering (inga `03`/`07`/`19`/`09`/`ATRV`). En utvecklarkonsol för att verifiera nya PID:ar kan övervägas senare.
+* **v1.2 (2026-11-25):** Dependency Injection fastställd till Hilt. Coldgate-tröskel fastställd till 15 °C (ny profilegenskap `coldgateThresholdCelsius`; `optimalBatteryTempCelsius` = 20 °C används endast för Dashboard-indikatorn). Namnbyte OpenEV Nav → ajNav. Felkodsläsning (DTC) och fordonsdiagnostik borttagen ur scope (`DtcScanner`, `DtcRecord`, `dtc_descriptions.json`, Diagnostik-fliken, DTC-/12V-notiser). OBD begränsat till minimal vitlista: endast data för laddning, förbrukning och navigering (inga `03`/`07`/`19`/`09`/`ATRV`). En utvecklarkonsol för att verifiera nya PID:ar kan övervägas senare.
 * **v1.1:** Ursprunglig version.
