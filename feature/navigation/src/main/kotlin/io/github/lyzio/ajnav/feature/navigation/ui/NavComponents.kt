@@ -405,6 +405,7 @@ internal fun PreviewCard(
     onClose: () -> Unit,
     onSetFavourite: (FavouriteSlot) -> Unit,
     modifier: Modifier = Modifier,
+    charging: (@Composable () -> Unit)? = null,
 ) {
     val context = LocalContext.current
     GlassCard(modifier) {
@@ -435,6 +436,10 @@ internal fun PreviewCard(
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Monospace,
                 )
+            }
+            charging?.let {
+                Spacer(Modifier.height(10.dp))
+                it()
             }
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

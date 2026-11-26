@@ -45,4 +45,7 @@ rootProject.name = "ajnav"
 include(":app")
 include(":core:model")
 include(":core:security")
+include(":feature:vehicles")
+include(":feature:charging")
+include(":feature:traffic-se")
 include(":feature:navigation")

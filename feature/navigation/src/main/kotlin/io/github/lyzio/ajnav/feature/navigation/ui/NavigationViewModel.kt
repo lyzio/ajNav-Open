@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.lyzio.ajnav.core.model.FavouriteSlot
 import io.github.lyzio.ajnav.core.model.GeoPoint
 import io.github.lyzio.ajnav.core.model.Place
+import io.github.lyzio.ajnav.feature.navigation.data.MapTheme
 import io.github.lyzio.ajnav.feature.navigation.data.NavPreferencesRepository
 import io.github.lyzio.ajnav.feature.navigation.geocoding.GeocodingProvider
 import io.github.lyzio.ajnav.feature.navigation.session.TripController
@@ -39,6 +40,9 @@ class NavigationViewModel @Inject constructor(
         prefs.favourites.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val recents: StateFlow<List<Place>> =
         prefs.recents.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val mapTheme: StateFlow<MapTheme> =
+        prefs.mapTheme.stateIn(viewModelScope, SharingStarted.Eagerly, MapTheme.AUTO)
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()

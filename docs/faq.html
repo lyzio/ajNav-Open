@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ajNav – FAQ & support</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><nav>
+  <a class="brand" href="index.html">aj<span>Nav</span></a>
+  <a href="index.html">Home</a>
+  <a href="roadmap.html">Roadmap</a>
+  <a href="faq.html" class="active">FAQ &amp; support</a>
+  <a href="privacy.html">Privacy</a>
+  <a href="https://github.com/lyzio/ajNav-Open">GitHub</a>
+</nav></header>
+<main>
+<h1>FAQ &amp; support</h1>
+
+<details open><summary>What do I need to use ajNav?</summary>
+<p>An Android phone (Android 8 or newer) and two free keys that you enter in the app's Settings:</p>
+<ul>
+  <li><strong>Mapbox public token</strong> (starts with <code>pk.</code>) for maps, routes and voice. Create one at <a href="https://console.mapbox.com/account/access-tokens/">console.mapbox.com</a>.</li>
+  <li><strong>Open Charge Map API key</strong> for charging stops. Sign in at <a href="https://openchargemap.org">openchargemap.org</a>, open <em>My Profile → My Apps</em> and register an application.</li>
+</ul>
+</details>
+
+<details><summary>Why do I have to bring my own keys?</summary>
+<p>ajNav is a free, non-commercial project. With your own keys, nobody pays for or sees your usage except you and the service. Both keys are free for personal use and stored encrypted on your phone.</p>
+</details>
+
+<details><summary>Does it work without Google Play Services?</summary>
+<p>Yes, on the phone. ajNav contains no Google Play Services code (our build checks this on every change), so it runs on GrapheneOS, LineageOS and microG. Android Auto itself is a Google app and needs Google's services on the phone.</p>
+</details>
+
+<details><summary>How do I get it on my car screen?</summary>
+<p>Google's Android Auto only shows navigation apps that were installed from Google Play. During testing, ajNav is shared through Google Play internal testing. How other people can get it is decided before version 1.0.</p>
+</details>
+
+<details><summary>How accurate are the charging stops?</summary>
+<p>They are estimates. In version 0.3 you type your battery %, energy use starts from 16 kWh/100 km (you can change it), and it is adjusted for weather and hills. Without the car link, the outside temperature stands in for battery temperature, so cold-weather charging times are marked as estimates. Prices come from your own entries first, then from Open Charge Map, then a default of 5.50 kr/kWh. Version 0.4 adds live data from the car.</p>
+</details>
+
+<details><summary>Which cars are supported?</summary>
+<p>Version 0.3 has a profile for the Fiat 500e 2021 (42 kWh). The profile format is open, so more cars can be added by the community.</p>
+</details>
+
+<details><summary>Does it work without mobile signal?</summary>
+<p>Chargers already fetched for a route are saved on the phone and still shown when the signal drops. Maps and new routes need a connection.</p>
+</details>
+
+<details><summary>I found a bug or have an idea</summary>
+<p>Please open an issue at <a href="https://github.com/lyzio/ajNav-Open/issues">github.com/lyzio/ajNav-Open/issues</a>. Tell us your phone, Android version, ajNav version (Settings → About) and what happened.</p>
+</details>
+</main>
+<footer><div>ajNav is open source (GNU AGPL-3.0) · No Google Play Services · Bring your own keys · <a href="https://github.com/lyzio/ajNav-Open">github.com/lyzio/ajNav-Open</a></div></footer>
+</body></html>

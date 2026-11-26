@@ -46,7 +46,16 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.lyzio.ajnav.BuildConfig
+import io.github.lyzio.ajnav.feature.navigation.data.MapTheme
+import io.github.lyzio.ajnav.feature.navigation.data.VoiceEngine
+import io.github.lyzio.ajnav.feature.navigation.data.VoiceLanguage
 import io.github.lyzio.ajnav.feature.navigation.ui.theme.AjColors
+import io.github.lyzio.ajnav.ui.ChoiceRow
+import io.github.lyzio.ajnav.ui.LabeledRow
+import io.github.lyzio.ajnav.ui.NumberField
+import io.github.lyzio.ajnav.ui.Section
+import io.github.lyzio.ajnav.ui.fieldColors
+import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen(
@@ -55,6 +64,11 @@ fun SettingsScreen(
 ) {
     val savedToken by viewModel.mapboxToken.collectAsStateWithLifecycle()
     val voiceEnabled by viewModel.voiceEnabled.collectAsStateWithLifecycle()
+    val voiceEngine by viewModel.voiceEngine.collectAsStateWithLifecycle()
+    val voiceLanguage by viewModel.voiceLanguage.collectAsStateWithLifecycle()
+    val mapTheme by viewModel.mapTheme.collectAsStateWithLifecycle()
+    val charging by viewModel.charging.collectAsStateWithLifecycle()
+    val savedOcmKey by viewModel.ocmKey.collectAsStateWithLifecycle()
 
     var tokenInput by remember { mutableStateOf("") }
     var showToken by remember { mutableStateOf(false) }
@@ -121,12 +135,81 @@ fun SettingsScreen(
             ) { Text("Save token", fontWeight = FontWeight.Bold) }
         }
 
-        Section("Navigation") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Voice instructions", color = AjColors.Ice, fontWeight = FontWeight.SemiBold)
-                    Text("Spoken in your phone's language", color = AjColors.Muted, fontSize = 12.sp)
+        Section("Open Charge Map (charging stops)") {
+            Text(
+                "Needed to find chargers along your route. Free: openchargemap.org → My Profile → My Apps → Register an application. Stored encrypted on this phone only.",
+                color = AjColors.Body,
+                fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(10.dp))
+            KeyField(
+                saved = savedOcmKey,
+                label = "Open Charge Map API key",
+                onSave = viewModel::saveOcmKey,
+            )
+        }
+
+        Section("Charging") {
+            charging?.let { c ->
+                Text(c.profile.displayName, color = AjColors.Ice, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${c.profile.defaultBatteryCapacityKwh} kWh usable · charges up to ${c.profile.chargeCurve.maxOf { it.maxPowerKw }.roundToInt()} kW",
+                    color = AjColors.Muted,
+                    fontSize = 12.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                NumberField(
+                    key = "consumption",
+                    label = "Energy use (kWh/100 km)",
+                    initial = c.planner.consumptionKwhPer100Km.toFloat(),
+                    onCommit = { it?.let(viewModel::setConsumption) },
+                    decimals = 1,
+                    range = 5f..50f,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField(
+                        key = "arrive",
+                        label = "Arrive with at least (%)",
+                        initial = c.planner.arriveMinPercent.toFloat(),
+                        onCommit = { it?.let { v -> viewModel.setArriveMin(v.roundToInt()) } },
+                        decimals = 0,
+                        range = 0f..50f,
+                        modifier = Modifier.weight(1f),
+                    )
+                    NumberField(
+                        key = "chargeTo",
+                        label = "Charge to (%)",
+                        initial = c.planner.chargeToPercent.toFloat(),
+                        onCommit = { it?.let { v -> viewModel.setChargeTo(v.roundToInt()) } },
+                        decimals = 0,
+                        range = 20f..100f,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "You type the battery % in the route preview. The car link (live battery data) comes in v0.4.",
+                    color = AjColors.Muted,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+
+        Section("Map") {
+            Text("Map colours", color = AjColors.Ice, fontWeight = FontWeight.SemiBold)
+            Text("Auto follows the phone's dark mode, and day/night in the car.", color = AjColors.Muted, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            ChoiceRow(
+                options = listOf(MapTheme.AUTO to "Auto", MapTheme.DARK to "Dark", MapTheme.LIGHT to "Light"),
+                selected = mapTheme,
+                onSelect = viewModel::setMapTheme,
+            )
+        }
+
+        Section("Navigation") {
+            LabeledRow("Voice instructions", null) {
                 Switch(
                     checked = voiceEnabled,
                     onCheckedChange = viewModel::setVoiceEnabled,
@@ -134,6 +217,32 @@ fun SettingsScreen(
                 )
             }
             Spacer(Modifier.height(10.dp))
+            Text("Voice", color = AjColors.Ice, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Mapbox's online voice, or your phone's own text-to-speech voice (may say some street names better).",
+                color = AjColors.Muted,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            ChoiceRow(
+                options = listOf(VoiceEngine.MAPBOX to "Mapbox", VoiceEngine.PHONE to "Phone's voice"),
+                selected = voiceEngine,
+                onSelect = viewModel::setVoiceEngine,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text("Voice language", color = AjColors.Ice, fontWeight = FontWeight.SemiBold)
+            Text("Also the language of the turn instructions. Applies from the next route.", color = AjColors.Muted, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            ChoiceRow(
+                options = listOf(
+                    VoiceLanguage.PHONE to "Phone language",
+                    VoiceLanguage.SWEDISH to "Svenska",
+                    VoiceLanguage.ENGLISH to "English",
+                ),
+                selected = voiceLanguage,
+                onSelect = viewModel::setVoiceLanguage,
+            )
+            Spacer(Modifier.height(12.dp))
             OutlinedButton(
                 onClick = viewModel::clearRecents,
                 border = BorderStroke(1.dp, AjColors.Border),
@@ -147,6 +256,8 @@ fun SettingsScreen(
                 "Open source (GNU AGPL-3.0) · github.com/lyzio/ajNav-Open\n" +
                     "Maps & routing © Mapbox © OpenStreetMap contributors\n" +
                     "Search by Photon (komoot)\n" +
+                    "Chargers © Open Charge Map contributors (CC BY 4.0)\n" +
+                    "Weather: SMHI (CC BY 4.0) · Elevation: Open-Meteo\n" +
                     "No Google Play Services.",
                 color = AjColors.Muted,
                 fontSize = 12.sp,
@@ -173,31 +284,44 @@ fun NoTokenScreen(onOpenSettings: () -> Unit) {
     }
 }
 
+/** Save-able secret field (used for the Open Charge Map key). */
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
-    Surface(
-        color = AjColors.Card,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, AjColors.Border),
+private fun KeyField(saved: String?, label: String, onSave: (String) -> Unit) {
+    var input by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(saved) { if (input.isEmpty()) input = saved.orEmpty() }
+    OutlinedTextField(
+        value = input,
+        onValueChange = {
+            input = it.trim()
+            note = null
+        },
+        label = { Text(label) },
+        singleLine = true,
         modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title.uppercase(), color = AjColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
-            content()
-        }
-    }
+        visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        trailingIcon = {
+            IconButton(onClick = { show = !show }) {
+                Icon(
+                    if (show) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = if (show) "Hide key" else "Show key",
+                    tint = AjColors.Muted,
+                )
+            }
+        },
+        supportingText = { note?.let { Text(it, color = AjColors.Teal) } },
+        colors = fieldColors(),
+    )
+    Spacer(Modifier.height(8.dp))
+    Button(
+        onClick = {
+            onSave(input)
+            note = if (input.isEmpty()) "Removed." else "Saved."
+        },
+        enabled = input != saved.orEmpty(),
+        colors = ButtonDefaults.buttonColors(containerColor = AjColors.Coral, contentColor = AjColors.Darkest),
+        shape = RoundedCornerShape(12.dp),
+    ) { Text(if (input.isEmpty() && !saved.isNullOrEmpty()) "Remove key" else "Save key", fontWeight = FontWeight.Bold) }
 }
-
-@Composable
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = AjColors.Land,
-    unfocusedContainerColor = AjColors.Land,
-    focusedBorderColor = AjColors.Teal,
-    unfocusedBorderColor = AjColors.Border,
-    cursorColor = AjColors.Teal,
-    focusedTextColor = AjColors.Ice,
-    unfocusedTextColor = AjColors.Ice,
-    focusedLabelColor = AjColors.Teal,
-    unfocusedLabelColor = AjColors.Muted,
-)

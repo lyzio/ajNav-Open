@@ -23,6 +23,18 @@ jobs:
           MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
         run: ./gradlew --no-daemon --stacktrace assembleDebug
 
+      - name: Unit tests (charging planner, prices, weather parser, car profiles)
+        env:
+          MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
+        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest :feature:vehicles:test
+
+      - uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: test-reports
+          path: "**/build/reports/tests/"
+          if-no-files-found: ignore
+
       - name: Check principle 1 — no Google Play Services
         env:
           MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
@@ -43,7 +55,7 @@ jobs:
           fi
           echo "OK: no Google Play Services dependencies (apart from the approved Mapbox Cronet exception)."
 
-      - name: Build signed release bundle for Google Play (v0.2.1)
+      - name: Build signed release bundle for Google Play
         env:
           MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
           KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}

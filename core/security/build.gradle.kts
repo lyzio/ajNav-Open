@@ -14,6 +14,7 @@ val localProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 val devMapboxToken: String = localProps.getProperty("MAPBOX_PUBLIC_TOKEN") ?: ""
+val devOcmKey: String = localProps.getProperty("OCM_API_KEY") ?: ""
 
 android {
     namespace = "io.github.lyzio.ajnav.core.security"
@@ -21,6 +22,7 @@ android {
     defaultConfig {
         minSdk = 26
         buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"$devMapboxToken\"")
+        buildConfigField("String", "OCM_API_KEY", "\"$devOcmKey\"")
     }
     buildFeatures { buildConfig = true }
     compileOptions {

@@ -1,5 +1,6 @@
 package io.github.lyzio.ajnav.car
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -8,7 +9,9 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import androidx.car.app.model.CarIcon
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.IconCompat
+import io.github.lyzio.ajnav.R
 import io.github.lyzio.ajnav.feature.navigation.session.LaneUi
 import kotlin.math.cos
 import kotlin.math.sin
@@ -104,6 +107,32 @@ internal object CarGraphics {
             text.textSize = 22f * d
             canvas.drawText(limitKmh.toString(), cx, cy + 8f * d, text)
         }
+        return bmp
+    }
+
+    /**
+     * Full-screen logo screen for the car (N2): dark LyzLarm background, the ajNav logo and name.
+     * The speed badge is a separate widget drawn on top.
+     */
+    fun logoScreen(context: Context, width: Int, height: Int, density: Float): Bitmap {
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawColor(Color.parseColor("#0F1A1C"))
+        val d = density.coerceAtLeast(1f)
+        val size = (minOf(width, height) * 0.42f).toInt()
+        val left = (width - size) / 2
+        val top = (height * 0.40f - size / 2f).toInt().coerceAtLeast(0)
+        ContextCompat.getDrawable(context, R.drawable.ic_launcher_foreground)?.let { logo ->
+            logo.setBounds(left, top, left + size, top + size)
+            logo.draw(canvas)
+        }
+        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#EEF3F3")
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            textSize = 34f * d
+        }
+        canvas.drawText("ajNav", width / 2f, top + size + 28f * d, text)
         return bmp
     }
 

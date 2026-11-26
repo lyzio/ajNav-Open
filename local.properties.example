@@ -10,3 +10,7 @@
 # Optional (developers only): pre-fill the public Mapbox token so you don't
 # have to type it into the app. End users enter their own token in Settings.
 # MAPBOX_PUBLIC_TOKEN=pk.xxxxxxxx
+
+# Optional (developers only): pre-fill your Open Charge Map API key (v0.3 charging
+# stops). End users enter their own free key in Settings.
+# OCM_API_KEY=xxxxxxxx

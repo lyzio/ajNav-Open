@@ -28,6 +28,7 @@ kapt { correctErrorTypes = true }
 
 dependencies {
     api(project(":core:model"))
+    api(project(":feature:charging"))
 
     api(libs.mapbox.navigation)
 

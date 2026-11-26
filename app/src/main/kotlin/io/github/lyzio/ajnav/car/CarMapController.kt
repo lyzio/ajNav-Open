@@ -6,7 +6,6 @@ import android.graphics.Rect
 import com.mapbox.maps.EdgeInsets
 import com.mapbox.maps.ImageHolder
 import com.mapbox.maps.MapboxExperimental
-import com.mapbox.maps.Style
 import com.mapbox.maps.extension.androidauto.MapboxCarMapObserver
 import com.mapbox.maps.extension.androidauto.MapboxCarMapSurface
 import com.mapbox.maps.plugin.LocationPuck2D
@@ -17,24 +16,34 @@ import com.mapbox.maps.renderer.widget.BitmapWidget
 import com.mapbox.maps.renderer.widget.WidgetPosition
 import com.mapbox.navigation.core.lifecycle.MapboxNavigationApp
 import io.github.lyzio.ajnav.feature.navigation.R
+import io.github.lyzio.ajnav.feature.navigation.data.MapTheme
+import io.github.lyzio.ajnav.feature.navigation.data.NavPreferencesRepository
 import io.github.lyzio.ajnav.feature.navigation.session.MapRenderer
+import io.github.lyzio.ajnav.feature.navigation.session.NavMode
 import io.github.lyzio.ajnav.feature.navigation.session.TripController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * Draws the shared trip on the Android Auto map surface: same dark style, teal route and
- * coral puck as the phone, plus the speed / speed-limit badge (templates have no field for it).
+ * Draws the shared trip on the Android Auto map surface: same map theme, teal route, charger
+ * markers and coral puck as the phone, plus the speed / speed-limit badge (templates have no
+ * field for it). In free drive the driver can hide the map behind the ajNav logo screen (N2).
  */
-internal class CarMapController(private val trip: TripController) : MapboxCarMapObserver {
+internal class CarMapController(
+    private val trip: TripController,
+    private val prefs: NavPreferencesRepository,
+    private val display: CarDisplayState,
+) : MapboxCarMapObserver {
 
     private var renderer: MapRenderer? = null
     private var speedWidget: BitmapWidget? = null
+    private var logoWidget: BitmapWidget? = null
     private var scope: CoroutineScope? = null
     private var lastInsets: EdgeInsets? = null
     private var lastVisibleHeight: Int = 0
@@ -64,7 +73,6 @@ internal class CarMapController(private val trip: TripController) : MapboxCarMap
             puckBearing = PuckBearing.COURSE
             enabled = true
         }
-        mapboxMap.loadStyle(Style.DARK) { style -> r.onStyleLoaded(style) }
         MapboxNavigationApp.registerObserver(r)
 
         val widget = BitmapWidget(
@@ -86,6 +94,47 @@ internal class CarMapController(private val trip: TripController) : MapboxCarMap
                 widget.updateBitmap(CarGraphics.speedBadge(speed, limit, density))
             }
         }
+        // Map theme (N1): Auto follows the car's day/night signal.
+        s.launch {
+            combine(prefs.mapTheme, display.carDark) { theme, carDark ->
+                when (theme) {
+                    MapTheme.AUTO -> carDark
+                    MapTheme.DARK -> true
+                    MapTheme.LIGHT -> false
+                }
+            }.distinctUntilChanged().collect { dark -> r.applyTheme(dark) }
+        }
+        // Logo screen (N2): only in free drive; the map returns as soon as a trip starts.
+        s.launch {
+            combine(display.mapHidden, trip.state.map { it.mode == NavMode.FREE_DRIVE }) { hidden, free -> hidden && free }
+                .distinctUntilChanged()
+                .collect { showLogo -> setLogoScreen(mapboxCarMapSurface, showLogo) }
+        }
+    }
+
+    private fun setLogoScreen(carSurface: MapboxCarMapSurface, show: Boolean) {
+        val surface = carSurface.mapSurface
+        val speed = speedWidget ?: return
+        if (show && logoWidget == null) {
+            val w = carSurface.surfaceContainer.width
+            val h = carSurface.surfaceContainer.height
+            if (w <= 0 || h <= 0) return
+            val logo = BitmapWidget(
+                CarGraphics.logoScreen(carSurface.carContext, w, h, density),
+                WidgetPosition {
+                    horizontalAlignment = WidgetPosition.Horizontal.LEFT
+                    verticalAlignment = WidgetPosition.Vertical.TOP
+                },
+            )
+            surface.addWidget(logo)
+            // Re-add the speed badge so it is drawn on top of the logo screen.
+            surface.removeWidget(speed)
+            surface.addWidget(speed)
+            logoWidget = logo
+        } else if (!show) {
+            logoWidget?.let { surface.removeWidget(it) }
+            logoWidget = null
+        }
     }
 
     override fun onDetached(mapboxCarMapSurface: MapboxCarMapSurface) {
@@ -93,6 +142,8 @@ internal class CarMapController(private val trip: TripController) : MapboxCarMap
         scope = null
         speedWidget?.let { mapboxCarMapSurface.mapSurface.removeWidget(it) }
         speedWidget = null
+        logoWidget?.let { mapboxCarMapSurface.mapSurface.removeWidget(it) }
+        logoWidget = null
         renderer?.let {
             MapboxNavigationApp.unregisterObserver(it)
             it.destroy()

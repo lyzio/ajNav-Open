@@ -55,7 +55,7 @@ class PhotonGeocodingProvider @Inject constructor(
     }
 
     private companion object {
-        const val USER_AGENT = "ajNav/0.2 (+https://github.com/lyzio/ajNav-Open)"
+        const val USER_AGENT = "ajNav/0.3 (+https://github.com/lyzio/ajNav-Open)"
     }
 }
 

@@ -2,9 +2,20 @@ package io.github.lyzio.ajnav.feature.navigation.session
 
 import android.content.Context
 import android.graphics.Color
+import com.mapbox.geojson.Feature
+import com.mapbox.geojson.FeatureCollection
+import com.mapbox.geojson.Point
 import com.mapbox.maps.EdgeInsets
 import com.mapbox.maps.MapboxMap
 import com.mapbox.maps.Style
+import com.mapbox.maps.extension.style.expressions.generated.Expression
+import com.mapbox.maps.extension.style.layers.addLayer
+import com.mapbox.maps.extension.style.layers.addLayerBelow
+import com.mapbox.maps.extension.style.layers.generated.circleLayer
+import com.mapbox.maps.extension.style.sources.addSource
+import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
+import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
+import com.mapbox.maps.extension.style.sources.getSourceAs
 import com.mapbox.maps.plugin.animation.CameraAnimationsPlugin
 import com.mapbox.navigation.base.route.NavigationRoute
 import com.mapbox.navigation.core.MapboxNavigation
@@ -38,9 +49,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * Draws the shared trip on one map: LyzLarm route line, maneuver arrow, car puck and the
- * following / overview camera. The phone uses one with its MapView, Android Auto one with
- * its car map surface. All trip logic lives in [TripController].
+ * Draws the shared trip on one map: LyzLarm route line, maneuver arrow, car puck, charger
+ * markers and the following / overview camera. The phone uses one with its MapView, Android
+ * Auto one with its car map surface. All trip logic lives in [TripController].
+ *
+ * Layer order, bottom to top: map, route line, maneuver arrow, chargers, car arrow (F1).
+ * The map style (theme, N1) is loaded here via [applyTheme].
  */
 class MapRenderer(
     context: Context,
@@ -58,6 +72,8 @@ class MapRenderer(
 
     private var hasCenteredOnce = false
     private var drawnRoutes: List<NavigationRoute> = emptyList()
+    private var markers: List<ChargerMarker> = emptyList()
+    private var loadedDark: Boolean? = null
 
     val locationProvider = NavigationLocationProvider()
 
@@ -78,7 +94,8 @@ class MapRenderer(
                     .routeCasingColor(PILL)
                     .build(),
             )
-            .routeLineBelowLayerId("road-label")
+            // F1: the route sits below the charger markers, which sit below the car arrow.
+            .routeLineBelowLayerId(CHARGER_LAYER)
             .build(),
     )
     private val routeArrowApi = MapboxRouteArrowApi()
@@ -107,6 +124,12 @@ class MapRenderer(
                 }
             }
         }
+        scope.launch {
+            trip.state.map { it.chargerMarkers }.distinctUntilChanged().collect { list ->
+                markers = list
+                mapboxMap.style?.let { updateMarkers(it) }
+            }
+        }
         // The camera follows the trip mode, so phone and car frame the same thing.
         scope.launch {
             trip.state.map { it.mode }.distinctUntilChanged().collect { mode ->
@@ -121,9 +144,15 @@ class MapRenderer(
         }
     }
 
-    /** Call after the map style has (re)loaded. */
-    fun onStyleLoaded(@Suppress("UNUSED_PARAMETER") style: Style) {
-        if (drawnRoutes.isNotEmpty()) drawRoutes(drawnRoutes)
+    /** Loads the dark (green) or light map (N1). Does nothing if that theme is already loaded. */
+    fun applyTheme(dark: Boolean) {
+        if (loadedDark == dark) return
+        loadedDark = dark
+        mapboxMap.loadStyle(MapStyler.baseStyle(dark)) { style ->
+            MapStyler.recolor(style, dark)
+            addChargerLayer(style)
+            if (drawnRoutes.isNotEmpty()) drawRoutes(drawnRoutes)
+        }
     }
 
     fun setPadding(following: EdgeInsets, overview: EdgeInsets) {
@@ -192,6 +221,33 @@ class MapRenderer(
         }
     }
 
+    private fun addChargerLayer(style: Style) {
+        if (!style.styleSourceExists(CHARGER_SOURCE)) {
+            style.addSource(geoJsonSource(CHARGER_SOURCE) { featureCollection(markerFeatures()) })
+        }
+        if (!style.styleLayerExists(CHARGER_LAYER)) {
+            val layer = circleLayer(CHARGER_LAYER, CHARGER_SOURCE) {
+                circleColor(Expression.get("color"))
+                circleRadius(9.0)
+                circleStrokeColor("#EEF3F3")
+                circleStrokeWidth(2.5)
+            }
+            if (style.styleLayerExists(PUCK_LAYER)) style.addLayerBelow(layer, PUCK_LAYER) else style.addLayer(layer)
+        }
+    }
+
+    private fun updateMarkers(style: Style) {
+        style.getSourceAs<GeoJsonSource>(CHARGER_SOURCE)?.featureCollection(markerFeatures())
+    }
+
+    private fun markerFeatures(): FeatureCollection = FeatureCollection.fromFeatures(
+        markers.map { m ->
+            Feature.fromGeometry(Point.fromLngLat(m.station.longitude, m.station.latitude)).apply {
+                addStringProperty("color", if (m.kind == ChargerMarkerKind.ADDED) ADDED_COLOR else SUGGESTED_COLOR)
+            }
+        },
+    )
+
     private fun clearRouteGraphics() {
         routeLineApi.clearRouteLine { value ->
             mapboxMap.style?.let { routeLineView.renderClearRouteLineValue(it, value) }
@@ -202,5 +258,11 @@ class MapRenderer(
     private companion object {
         val TEAL = Color.parseColor("#4FB3A9")
         val PILL = Color.parseColor("#006266")
+        const val CHARGER_SOURCE = "ajnav-chargers-source"
+        const val CHARGER_LAYER = "ajnav-chargers-layer"
+        /** Mapbox's 2D location puck layer (the car arrow). */
+        const val PUCK_LAYER = "mapbox-location-indicator-layer"
+        const val SUGGESTED_COLOR = "#F2B134"
+        const val ADDED_COLOR = "#4FB3A9"
     }
 }

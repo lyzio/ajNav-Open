@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.lyzio.ajnav"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.3"
     }
 
     // Play upload key (v0.2.1). CI writes the keystore from GitHub secrets; it is never committed.
@@ -66,6 +66,8 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:security"))
     implementation(project(":feature:navigation"))
+    implementation(project(":feature:charging"))
+    implementation(project(":feature:vehicles"))
 
     implementation(libs.mapbox.navigation)
     implementation(libs.mapbox.maps.androidauto)
@@ -90,4 +92,5 @@ dependencies {
     kapt(libs.hilt.compiler)
 
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.datastore.preferences)
 }

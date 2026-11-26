@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.map
 /** API keys the user brings themselves (BYOK). More keys are added in later versions. */
 enum class ApiKey(internal val storageKey: String) {
     MAPBOX_PUBLIC_TOKEN("mapbox_public_token"),
+    /** Open Charge Map (required for charging stops, from v0.3). */
+    OCM_API_KEY("ocm_api_key"),
 }
 
 private val Context.secureKeyStore by preferencesDataStore(name = "secure_keys")
@@ -48,5 +50,6 @@ class ApiKeyRepository @Inject constructor(
 
     private fun buildConfigDefault(key: ApiKey): String? = when (key) {
         ApiKey.MAPBOX_PUBLIC_TOKEN -> BuildConfig.MAPBOX_PUBLIC_TOKEN.takeIf { it.isNotBlank() }
+        ApiKey.OCM_API_KEY -> BuildConfig.OCM_API_KEY.takeIf { it.isNotBlank() }
     }
 }

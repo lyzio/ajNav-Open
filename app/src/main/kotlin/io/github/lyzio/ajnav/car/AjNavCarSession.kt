@@ -1,6 +1,7 @@
 package io.github.lyzio.ajnav.car
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
@@ -21,14 +22,24 @@ import io.github.lyzio.ajnav.feature.navigation.data.NavPreferencesRepository
 import io.github.lyzio.ajnav.feature.navigation.geocoding.GeocodingProvider
 import io.github.lyzio.ajnav.feature.navigation.session.MapboxBootstrap
 import io.github.lyzio.ajnav.feature.navigation.session.TripController
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+
+/** Car-screen-only state shared by the screens and the map (v0.3). */
+internal class CarDisplayState {
+    /** N2: the driver chose "Hide map" (only honoured in free drive). */
+    val mapHidden = MutableStateFlow(false)
+    /** The car's day/night signal (Auto map theme). */
+    val carDark = MutableStateFlow(true)
+}
 
 /** What the car screens need from the app. */
 internal class CarDeps(
     val trip: TripController,
     val geocoding: GeocodingProvider,
     val prefs: NavPreferencesRepository,
+    val display: CarDisplayState = CarDisplayState(),
 )
 
 /**
@@ -84,10 +95,16 @@ internal class AjNavCarSession(
             deps.trip.startTripSessionIfPermitted()
             carMap.setup(carContext, mapInitOptions(carContext))
             carMap.setGestureHandler(null) // the camera always follows the car in v0.2
-            carMap.registerObserver(CarMapController(deps.trip))
+            deps.display.carDark.value = carContext.isDarkMode
+            carMap.registerObserver(CarMapController(deps.trip, deps.prefs, deps.display))
             mapReady = true
         }
         return CarNavigationScreen(carContext, deps)
+    }
+
+    override fun onCarConfigurationChanged(newConfiguration: Configuration) {
+        // Day/night switch in the car: the Auto map theme follows it.
+        deps.display.carDark.value = carContext.isDarkMode
     }
 
     private fun retry() {
