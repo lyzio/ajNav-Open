@@ -72,7 +72,9 @@ import io.github.lyzio.ajnav.core.model.FavouriteSlot
 import io.github.lyzio.ajnav.core.model.Place
 import io.github.lyzio.ajnav.feature.navigation.R
 import io.github.lyzio.ajnav.feature.navigation.session.NavMode
-import io.github.lyzio.ajnav.feature.navigation.session.NavigationSession
+import io.github.lyzio.ajnav.feature.navigation.session.MapRenderer
+import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.plugin.animation.camera
 import io.github.lyzio.ajnav.feature.navigation.ui.theme.AjColors
 
 /**
@@ -89,37 +91,49 @@ fun NavigationScreen(
 ) {
     val context = LocalContext.current
 
-    // --- Map + Mapbox session (kept for the lifetime of this screen) ---
+    val trip = viewModel.trip
+
+    // --- Map + renderer for the shared trip (kept for the lifetime of this screen) ---
     val mapView = remember { MapView(context) }
-    val session = remember { NavigationSession(context, mapView) }
-    DisposableEffect(session) {
+    val renderer = remember {
+        val d = context.resources.displayMetrics.density
+        MapRenderer(
+            context = context,
+            mapboxMap = mapView.mapboxMap,
+            camera = mapView.camera,
+            trip = trip,
+            followingPadding = EdgeInsets(200.0 * d, 40.0 * d, 140.0 * d, 40.0 * d),
+            overviewPadding = EdgeInsets(140.0 * d, 40.0 * d, 260.0 * d, 40.0 * d),
+        )
+    }
+    DisposableEffect(renderer) {
         mapView.scalebar.enabled = false
         mapView.location.apply {
-            setLocationProvider(session.locationProvider)
+            setLocationProvider(renderer.locationProvider)
             locationPuck = LocationPuck2D(bearingImage = ImageHolder.from(R.drawable.ajnav_puck))
             puckBearingEnabled = true
             puckBearing = PuckBearing.COURSE
             enabled = true
         }
-        mapView.mapboxMap.loadStyle(Style.DARK) { style -> session.onStyleLoaded(style) }
-        MapboxNavigationApp.registerObserver(session)
+        mapView.mapboxMap.loadStyle(Style.DARK) { style -> renderer.onStyleLoaded(style) }
+        MapboxNavigationApp.registerObserver(renderer)
         onDispose {
-            MapboxNavigationApp.unregisterObserver(session)
-            session.destroy()
+            MapboxNavigationApp.unregisterObserver(renderer)
+            renderer.destroy()
         }
     }
 
-    val nav by session.state.collectAsStateWithLifecycle()
+    val nav by trip.state.collectAsStateWithLifecycle()
+    val cameraFollowing by renderer.cameraFollowing.collectAsStateWithLifecycle()
     val favourites by viewModel.favourites.collectAsStateWithLifecycle()
     val recents by viewModel.recents.collectAsStateWithLifecycle()
-    val voiceEnabled by viewModel.voiceEnabled.collectAsStateWithLifecycle()
+    val voiceOn by trip.voiceEnabled.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
 
     var searching by rememberSaveable { mutableStateOf(false) }
-    var destination by remember { mutableStateOf<Place?>(null) }
+    val destination = nav.destination
     var pendingSlot by remember { mutableStateOf<FavouriteSlot?>(null) } // "set Home" flow
-    var voiceOn by remember(voiceEnabled) { mutableStateOf(voiceEnabled) }
 
     // --- Location permission ---
     var hasLocation by remember {
@@ -132,7 +146,7 @@ fun NavigationScreen(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result ->
         hasLocation = result[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (hasLocation) session.startTripSessionIfPermitted()
+        if (hasLocation) trip.startTripSessionIfPermitted()
     }
     LaunchedEffect(Unit) {
         if (!hasLocation) {
@@ -145,7 +159,6 @@ fun NavigationScreen(
         }
     }
 
-    LaunchedEffect(voiceOn) { session.voiceEnabled = voiceOn }
     LaunchedEffect(nav.location) { viewModel.searchBias = nav.location }
 
     val active = nav.mode == NavMode.ACTIVE
@@ -167,8 +180,7 @@ fun NavigationScreen(
         }
         searching = false
         viewModel.clearQuery()
-        destination = place
-        session.previewRoute(place.point)
+        trip.previewRoute(place)
     }
 
     BackHandler(enabled = searching) {
@@ -176,8 +188,7 @@ fun NavigationScreen(
         pendingSlot = null
     }
     BackHandler(enabled = !searching && destination != null && !active) {
-        destination = null
-        session.clearPreview()
+        trip.clearPreview()
     }
 
     Box(modifier.fillMaxSize().background(AjColors.Bg)) {
@@ -216,7 +227,7 @@ fun NavigationScreen(
                 GlassCard {
                     Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(msg, color = AjColors.Body, modifier = Modifier.weight(1f))
-                        IconButton(onClick = session::consumeMessage) {
+                        IconButton(onClick = trip::consumeMessage) {
                             Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = AjColors.Muted)
                         }
                     }
@@ -233,9 +244,9 @@ fun NavigationScreen(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (!nav.cameraFollowing) {
+            if (!cameraFollowing) {
                 SmallFloatingActionButton(
-                    onClick = session::recenter,
+                    onClick = renderer::recenter,
                     containerColor = AjColors.Card,
                     contentColor = AjColors.Teal,
                     modifier = Modifier.align(Alignment.End),
@@ -244,33 +255,21 @@ fun NavigationScreen(
             when {
                 active && nav.arrived -> ArrivedCard(
                     place = destination,
-                    onDone = {
-                        session.stopNavigation()
-                        destination = null
-                    },
+                    onDone = trip::stopNavigation,
                 )
                 active -> EtaStrip(
                     progress = nav.progress,
                     voiceEnabled = voiceOn,
-                    onToggleVoice = { voiceOn = !voiceOn },
-                    onEnd = {
-                        session.stopNavigation()
-                        destination = null
-                    },
+                    onToggleVoice = { trip.setVoiceEnabled(!voiceOn) },
+                    onEnd = trip::stopNavigation,
                 )
                 destination != null -> PreviewCard(
-                    place = destination!!,
+                    place = destination,
                     summary = nav.preview,
                     loading = nav.mode == NavMode.ROUTING,
-                    onStart = {
-                        viewModel.addRecent(destination!!)
-                        session.startNavigation()
-                    },
-                    onClose = {
-                        destination = null
-                        session.clearPreview()
-                    },
-                    onSetFavourite = { slot -> viewModel.setFavourite(slot, destination!!) },
+                    onStart = trip::startNavigation,
+                    onClose = trip::clearPreview,
+                    onSetFavourite = { slot -> viewModel.setFavourite(slot, destination) },
                 )
                 else -> {
                     SpeedCard(nav.speedKmh, nav.speedLimitKmh)
