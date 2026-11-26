@@ -50,6 +50,8 @@ internal class CarNavigationScreen(
                 launch {
                     // Refresh only when something visible changes (Android Auto limits refreshes).
                     trip.state.map { it.templateKey() }.distinctUntilChanged().collect {
+                        // N2: the map always comes back when a trip starts (from car or phone).
+                        if (trip.state.value.mode != NavMode.FREE_DRIVE) deps.display.mapHidden.value = false
                         syncGuidance(trip.state.value)
                         showPreviewIfNeeded(trip.state.value)
                         invalidate()
@@ -61,6 +63,7 @@ internal class CarNavigationScreen(
                     }
                 }
                 launch { trip.voiceEnabled.collect { invalidate() } }
+                launch { deps.display.mapHidden.collect { invalidate() } }
             }
         }
 
@@ -96,6 +99,12 @@ internal class CarNavigationScreen(
                 ActionStrip.Builder()
                     .addAction(
                         Action.Builder()
+                            .setTitle("Chargers")
+                            .setOnClickListener { screenManager.push(CarChargingScreen(carContext, deps)) }
+                            .build(),
+                    )
+                    .addAction(
+                        Action.Builder()
                             .setTitle(if (voiceOn) "Mute" else "Unmute")
                             .setOnClickListener { trip.setVoiceEnabled(!voiceOn) }
                             .build(),
@@ -121,6 +130,12 @@ internal class CarNavigationScreen(
                         Action.Builder()
                             .setTitle("Places")
                             .setOnClickListener { screenManager.push(CarPlacesScreen(carContext, deps)) }
+                            .build(),
+                    )
+                    .addAction(
+                        Action.Builder()
+                            .setTitle(if (deps.display.mapHidden.value) "Show map" else "Hide map")
+                            .setOnClickListener { deps.display.mapHidden.value = !deps.display.mapHidden.value }
                             .build(),
                     )
                     .build(),

@@ -6,6 +6,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
+import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.DistanceSpan
 import androidx.car.app.model.DurationSpan
 import androidx.car.app.model.ItemList
@@ -20,10 +21,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/** Route preview (RoutePreviewNavigationTemplate): time, distance and a Start button. */
+/**
+ * Route preview (RoutePreviewNavigationTemplate): time, distance, a charging summary and a
+ * Start button. "Charging" opens the battery % and the suggested charging stops (v0.3).
+ */
 internal class CarRoutePreviewScreen(
     carContext: CarContext,
-    deps: CarDeps,
+    private val deps: CarDeps,
 ) : Screen(carContext) {
 
     private val trip = deps.trip
@@ -40,7 +44,9 @@ internal class CarRoutePreviewScreen(
         )
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                trip.state.map { Triple(it.mode, it.preview, it.destination) }.distinctUntilChanged().collect { (mode, _, _) ->
+                trip.state.map { listOf(it.mode, it.preview, it.destination, it.charging, it.chargeStops) }
+                    .distinctUntilChanged().collect { key ->
+                    val mode = key[0] as NavMode
                     // Started, cancelled or failed (on either screen): leave the preview.
                     if (mode == NavMode.ACTIVE || mode == NavMode.FREE_DRIVE) finish() else invalidate()
                 }
@@ -68,6 +74,7 @@ internal class CarRoutePreviewScreen(
         val row = Row.Builder()
             .setTitle(info)
             .apply { state.destination?.address?.takeIf { it.isNotBlank() }?.let { addText(it) } }
+            .addText(CarChargingText.summary(state))
             .build()
 
         return builder
@@ -76,6 +83,16 @@ internal class CarRoutePreviewScreen(
                     .addItem(row)
                     .setSelectedIndex(0)
                     .setOnSelectedListener { }
+                    .build(),
+            )
+            .setActionStrip(
+                ActionStrip.Builder()
+                    .addAction(
+                        Action.Builder()
+                            .setTitle("Charging")
+                            .setOnClickListener { screenManager.push(CarChargingScreen(carContext, deps)) }
+                            .build(),
+                    )
                     .build(),
             )
             .setNavigateAction(

@@ -8,6 +8,7 @@ import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,7 +63,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mapbox.maps.ImageHolder
 import com.mapbox.maps.MapView
-import com.mapbox.maps.Style
 import com.mapbox.maps.plugin.LocationPuck2D
 import com.mapbox.maps.plugin.PuckBearing
 import com.mapbox.maps.plugin.locationcomponent.location
@@ -71,6 +71,7 @@ import com.mapbox.navigation.core.lifecycle.MapboxNavigationApp
 import io.github.lyzio.ajnav.core.model.FavouriteSlot
 import io.github.lyzio.ajnav.core.model.Place
 import io.github.lyzio.ajnav.feature.navigation.R
+import io.github.lyzio.ajnav.feature.navigation.data.MapTheme
 import io.github.lyzio.ajnav.feature.navigation.session.NavMode
 import io.github.lyzio.ajnav.feature.navigation.session.MapRenderer
 import com.mapbox.maps.EdgeInsets
@@ -115,13 +116,22 @@ fun NavigationScreen(
             puckBearing = PuckBearing.COURSE
             enabled = true
         }
-        mapView.mapboxMap.loadStyle(Style.DARK) { style -> renderer.onStyleLoaded(style) }
         MapboxNavigationApp.registerObserver(renderer)
         onDispose {
             MapboxNavigationApp.unregisterObserver(renderer)
             renderer.destroy()
         }
     }
+
+    // Map theme (N1): Auto follows the phone's dark mode.
+    val theme by viewModel.mapTheme.collectAsStateWithLifecycle()
+    val systemDark = isSystemInDarkTheme()
+    val darkMap = when (theme) {
+        MapTheme.AUTO -> systemDark
+        MapTheme.DARK -> true
+        MapTheme.LIGHT -> false
+    }
+    LaunchedEffect(darkMap) { renderer.applyTheme(darkMap) }
 
     val nav by trip.state.collectAsStateWithLifecycle()
     val cameraFollowing by renderer.cameraFollowing.collectAsStateWithLifecycle()
@@ -270,6 +280,16 @@ fun NavigationScreen(
                     onStart = trip::startNavigation,
                     onClose = trip::clearPreview,
                     onSetFavourite = { slot -> viewModel.setFavourite(slot, destination) },
+                    charging = {
+                        ChargingPanel(
+                            charging = nav.charging,
+                            addedStops = nav.chargeStops,
+                            routeLoading = nav.mode == NavMode.ROUTING,
+                            onBattery = trip::setBatteryPercent,
+                            onAdd = trip::addChargeStop,
+                            onRemove = trip::removeChargeStop,
+                        )
+                    },
                 )
                 else -> {
                     SpeedCard(nav.speedKmh, nav.speedLimitKmh)

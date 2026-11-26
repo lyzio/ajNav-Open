@@ -17,6 +17,15 @@ import kotlinx.serialization.json.Json
 
 private val Context.navStore by preferencesDataStore(name = "navigation")
 
+/** Map colours (N1): Auto follows the car's day/night signal and the phone's dark mode. */
+enum class MapTheme { AUTO, DARK, LIGHT }
+
+/** Who speaks the instructions (N3). */
+enum class VoiceEngine { MAPBOX, PHONE }
+
+/** Language of the spoken (and written) instructions (N3). */
+enum class VoiceLanguage(val tag: String?) { PHONE(null), SWEDISH("sv"), ENGLISH("en") }
+
 /** Favourites (Home/Work), recent destinations and navigation settings. Local only. */
 @Singleton
 class NavPreferencesRepository @Inject constructor(
@@ -35,6 +44,25 @@ class NavPreferencesRepository @Inject constructor(
     }
 
     val voiceEnabled: Flow<Boolean> = context.navStore.data.map { it[VOICE] ?: true }
+
+    val mapTheme: Flow<MapTheme> = context.navStore.data.map { p -> enumOr(p[THEME], MapTheme.AUTO) }
+    val voiceEngine: Flow<VoiceEngine> = context.navStore.data.map { p -> enumOr(p[VOICE_ENGINE], VoiceEngine.MAPBOX) }
+    val voiceLanguage: Flow<VoiceLanguage> = context.navStore.data.map { p -> enumOr(p[VOICE_LANGUAGE], VoiceLanguage.PHONE) }
+
+    suspend fun setMapTheme(theme: MapTheme) {
+        context.navStore.edit { it[THEME] = theme.name }
+    }
+
+    suspend fun setVoiceEngine(engine: VoiceEngine) {
+        context.navStore.edit { it[VOICE_ENGINE] = engine.name }
+    }
+
+    suspend fun setVoiceLanguage(language: VoiceLanguage) {
+        context.navStore.edit { it[VOICE_LANGUAGE] = language.name }
+    }
+
+    private inline fun <reified E : Enum<E>> enumOr(raw: String?, default: E): E =
+        raw?.let { name -> enumValues<E>().firstOrNull { it.name == name } } ?: default
 
     suspend fun setFavourite(slot: FavouriteSlot, place: Place?) {
         context.navStore.edit { prefs ->
@@ -71,6 +99,9 @@ class NavPreferencesRepository @Inject constructor(
         val PLACE_LIST = ListSerializer(Place.serializer())
         val RECENTS = stringPreferencesKey("recents")
         val VOICE = booleanPreferencesKey("voice_enabled")
+        val THEME = stringPreferencesKey("map_theme")
+        val VOICE_ENGINE = stringPreferencesKey("voice_engine")
+        val VOICE_LANGUAGE = stringPreferencesKey("voice_language")
         fun favKey(slot: FavouriteSlot) = stringPreferencesKey("favourite_${slot.name.lowercase()}")
     }
 }

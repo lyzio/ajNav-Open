@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EvStation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -34,6 +35,7 @@ import io.github.lyzio.ajnav.feature.navigation.session.MapboxBootstrap
 import io.github.lyzio.ajnav.feature.navigation.ui.NavigationScreen
 import io.github.lyzio.ajnav.feature.navigation.ui.theme.AjColors
 import io.github.lyzio.ajnav.feature.navigation.ui.theme.AjNavTheme
+import io.github.lyzio.ajnav.operators.OperatorsScreen
 import io.github.lyzio.ajnav.settings.NoTokenScreen
 import io.github.lyzio.ajnav.settings.SettingsScreen
 import javax.inject.Inject
@@ -74,7 +76,7 @@ sealed interface TokenState {
     data class Loaded(val token: String?) : TokenState
 }
 
-private enum class Tab { NAVIGATE, SETTINGS }
+private enum class Tab { NAVIGATE, OPERATORS, SETTINGS }
 
 @Composable
 private fun AppRoot(tokenState: TokenState, mapboxReady: Boolean) {
@@ -106,6 +108,13 @@ private fun AppRoot(tokenState: TokenState, mapboxReady: Boolean) {
                         colors = colors,
                     )
                     NavigationBarItem(
+                        selected = tab == Tab.OPERATORS,
+                        onClick = { tab = Tab.OPERATORS },
+                        icon = { Icon(Icons.Filled.EvStation, contentDescription = null) },
+                        label = { Text("Operators & Prices") },
+                        colors = colors,
+                    )
+                    NavigationBarItem(
                         selected = tab == Tab.SETTINGS,
                         onClick = { tab = Tab.SETTINGS },
                         icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
@@ -122,6 +131,9 @@ private fun AppRoot(tokenState: TokenState, mapboxReady: Boolean) {
                 NavigationScreen(onActiveNavigationChanged = { navigating = it })
             } else if (tokenState is TokenState.Loaded) {
                 NoTokenScreen(onOpenSettings = { tab = Tab.SETTINGS })
+            }
+            if (tab == Tab.OPERATORS && !navigating) {
+                OperatorsScreen()
             }
             if (tab == Tab.SETTINGS && !navigating) {
                 SettingsScreen(mapboxAlreadyStarted = mapboxReady)

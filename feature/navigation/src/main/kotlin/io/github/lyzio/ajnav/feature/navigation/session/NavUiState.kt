@@ -45,4 +45,27 @@ data class NavUiState(
     val preview: RouteSummary? = null,
     val arrived: Boolean = false,
     val message: String? = null,
+    /** Charging stops the driver added to the route, in route order. */
+    val chargeStops: List<io.github.lyzio.ajnav.core.model.ChargerStation> = emptyList(),
+    val charging: ChargingUi = ChargingUi(),
+    /** Chargers to draw on the map (suggested and added). */
+    val chargerMarkers: List<ChargerMarker> = emptyList(),
+)
+
+/** What a charger marker on the map stands for. */
+enum class ChargerMarkerKind { SUGGESTED, ADDED }
+
+data class ChargerMarker(val station: io.github.lyzio.ajnav.core.model.ChargerStation, val kind: ChargerMarkerKind)
+
+/** Charging part of the trip (v0.3): typed battery %, the plan for the previewed route, notices. */
+data class ChargingUi(
+    /** Battery % typed by the driver (null = not entered yet). */
+    val batteryPercent: Int? = null,
+    val loading: Boolean = false,
+    val plan: io.github.lyzio.ajnav.feature.charging.planner.ChargePlan? = null,
+    /** e.g. missing Open Charge Map key, offline (saved chargers), cold-weather hint. */
+    val notice: String? = null,
+    /** Lowest outside temperature on the route (SMHI), shown with cold estimates. */
+    val outsideTempC: Double? = null,
+    val arriveMinPercent: Int = 10,
 )
