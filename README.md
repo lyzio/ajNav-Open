@@ -18,11 +18,11 @@ Open-source navigation for electric cars on Android and Android Auto. No Google 
 ## Android Auto (testers)
 Google's Android Auto app only shows car-template apps like ajNav when they are installed from Google Play. Its "Unknown sources" developer setting covers self-installed music and messaging apps, not navigation apps built with the Car App Library. Two ways to test on the car screen:
 
-**A. Google Play internal app sharing (used by the project owner)**
-1. In Play Console, upload the `ajnav-debug-apk` APK under *Test and release → Internal testing → Internal app sharing* and copy the link.
-2. On the phone, turn on internal app sharing once: Play Store → profile → *Settings → About*, tap *Play Store version* 7 times, then turn on *Internal app sharing*.
-3. Uninstall any self-installed ajNav first (the Play copy has a different signature), then open the link on the phone and install.
-4. Connect to the car. ajNav appears in Android Auto's app launcher.
+**A. Google Play internal testing (used by the project owner)**
+1. Download the `ajnav-release-aab` artifact from a green CI run and unzip it (`app-release.aab`, signed with the project's upload key).
+2. In Play Console: *Test and release → Testing → Internal testing → Testers*, create an email list with your Google account. Then *Create new release*, upload the `.aab`, and roll it out.
+3. Open the tester link (on the *Testers* tab) on the phone, accept, and install ajNav from the Play Store. Uninstall any self-installed ajNav first; the Play copy has a different signature. The first link can take a few hours to become active.
+4. Connect to the car. ajNav appears in Android Auto's app launcher. New versions arrive as normal Play updates after each new internal release.
 
 **B. [AARE](https://github.com/prototux/AARE)** — an open-source replacement for the phone side of Android Auto (no root, no Google). ajNav's test builds accept it as a host. Some factory head units refuse it, and Play Protect may warn when installing it.
 
