@@ -1,4 +1,4 @@
-# Software Design Document (SDD): ajNav (v1.4.3)
+# Software Design Document (SDD): ajNav (v1.4.4)
 
 ## 1. Projektöversikt & Kärnprinciper
 **ajNav** är en modulär, öppen källkods-applikation för Android och Android Auto byggd för elbilsförare. Appen kombinerar turn-by-turn-navigering med realtidsdata från bilen via OBD2 (BLE), molntelemetri, dynamisk laddstoppsplanering, kostnadskalkyl, topografi/väder samt svensk trafikdata.
@@ -140,7 +140,7 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
 * **`EnodeClient` (`:feature:telemetry-cloud`, valfri):**
   * OAuth2 REST-klient som hämtar `chargeState.batteryLevel` och `isPluggedIn` när OBDLink CX är frånkopplad (för ruttplanering hemifrån).
 * **`SmhiWeatherClient` (`:feature:traffic-se`, nyckelfri):**
-  * Anropar SMHI Open Data (`https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/{lon}/lat/{lat}/data.json`) för ruttens mittpunkt och destination för att få temperatur, vind och nederbörd i hela Norden utan API-nyckel.
+  * Anropar SMHI Open Data (`https://opendata-download-metfcst.smhi.se/api/category/snow1g/version/1/geotype/point/lon/{lon}/lat/{lat}/data.json`) för ruttens mittpunkt och destination för att få temperatur, vind och nederbörd i hela Norden utan API-nyckel. *(SMHI avvecklade det gamla `pmp3g/version/2` den 31 mars 2026; `snow1g/version/1` är ersättaren.)*
 * **`TrafikverketClient` (`:feature:traffic-se`, valfri med nyckel):**
   * Skickar kombinerat XML-anrop (`POST https://api.trafikverket.se/v2/data.json`) var 10:e minut under aktiv rutt med en WKT-polygon buffrad 2 km runt rutten:
     * `Situation` (schemaversion 1.5): Olyckor, vägarbeten och avstängningar (varnar om störning finns inom 30 km framför bilen).
@@ -215,6 +215,7 @@ GPS-navigering först, bildata (OBD) i senare versioner. Varje version ska vara 
 ---
 
 ## 6. Ändringslogg
+* **v1.4.4 (2026-11-26, bygget av v0.3):** SMHI-adressen byts till `snow1g/version/1` (gamla `pmp3g` avvecklad 2026-03-31). Tekniska detaljer från bygget: (1) OCM hämtas utan `operatorid`; "Endast valda" filtreras i appen, så byte av läge kräver ingen ny hämtning. Rutten förenklas och delas i bitar om ca 150 km så att varje anrop håller sig under 100 träffar. (2) Väderpåslag: kyla under 2 °C +10 % (upp till +15 % vid −10 °C), nederbörd +5 %, motvind > 10 m/s +5 %, max +25 %. (3) Utförsbacke: återvunnen energi = m·g·Δh·0,65 (multiplicerat, inte dividerat). (4) Laddkostnad räknas på batteri-kWh (inga laddförluster). (5) Laddare utan angiven effekt räknas som 50 kW. (6) Höjder (Open-Meteo) ligger i `:feature:charging`, eftersom planeraren behöver dem; `:feature:navigation` beror på `:feature:charging`.
 * **v1.4.3 (2026-11-26):** NOBIL live-tillgänglighet flyttas till v0.4 (v0.3 använder OCM + egna priser).
 * **v1.4.2 (2026-11-26):** v0.3-planerare: 16 kWh/100 km standard, ankomst ≥ 10 %, ladda till 80 %, stopp läggs till av användaren, Coldgate uppskattas från SMHI-temperatur.
 * **v1.4.1 (2026-11-26):** Webbplats: flyttas från grenen `gh-pages` till `docs/` på `master` (en gren); nya sidor Hem, Färdplan/status, FAQ/support (engelska). Planerat i v0.3.

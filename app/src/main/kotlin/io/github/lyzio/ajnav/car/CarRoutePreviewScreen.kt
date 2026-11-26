@@ -73,7 +73,7 @@ internal class CarRoutePreviewScreen(
 
         val row = Row.Builder()
             .setTitle(info)
-            .apply { state.destination?.address?.takeIf { it.isNotBlank() }?.let { addText(it) } }
+            // One text line, as in v0.2 (the destination name is the screen title).
             .addText(CarChargingText.summary(state))
             .build()
 

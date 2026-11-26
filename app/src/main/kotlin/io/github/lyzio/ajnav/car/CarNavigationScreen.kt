@@ -6,6 +6,9 @@ import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.CarColor
+import androidx.car.app.model.CarIcon
+import androidx.core.graphics.drawable.IconCompat
+import io.github.lyzio.ajnav.R
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.NavigationManager
 import androidx.car.app.navigation.NavigationManagerCallback
@@ -104,8 +107,9 @@ internal class CarNavigationScreen(
                             .build(),
                     )
                     .addAction(
+                        // Icon only: Android Auto limits how many buttons may have a title.
                         Action.Builder()
-                            .setTitle(if (voiceOn) "Mute" else "Unmute")
+                            .setIcon(icon(if (voiceOn) R.drawable.ic_car_volume_on else R.drawable.ic_car_volume_off))
                             .setOnClickListener { trip.setVoiceEnabled(!voiceOn) }
                             .build(),
                     )
@@ -133,8 +137,9 @@ internal class CarNavigationScreen(
                             .build(),
                     )
                     .addAction(
+                        // N2 Hide map / Show map. Icon only (see above): ajNav logo hides, map icon shows.
                         Action.Builder()
-                            .setTitle(if (deps.display.mapHidden.value) "Show map" else "Hide map")
+                            .setIcon(icon(if (deps.display.mapHidden.value) R.drawable.ic_car_map else R.drawable.ic_car_logo))
                             .setOnClickListener { deps.display.mapHidden.value = !deps.display.mapHidden.value }
                             .build(),
                     )
@@ -143,6 +148,8 @@ internal class CarNavigationScreen(
         }
         return builder.build()
     }
+
+    private fun icon(res: Int): CarIcon = CarIcon.Builder(IconCompat.createWithResource(carContext, res)).build()
 
     /** Tell Android Auto when turn-by-turn starts and stops (needed for the car's own displays). */
     private fun syncGuidance(state: NavUiState) {

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ajNav – Privacy policy</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><nav>
+  <a class="brand" href="index.html">aj<span>Nav</span></a>
+  <a href="index.html">Home</a>
+  <a href="roadmap.html">Roadmap</a>
+  <a href="faq.html">FAQ &amp; support</a>
+  <a href="privacy.html" class="active">Privacy</a>
+  <a href="https://github.com/lyzio/ajNav-Open">GitHub</a>
+</nav></header>
+<main>
+<h1>ajNav – Privacy policy</h1>
+<p class="muted">Last updated: 26 November 2026 · Applies to ajNav version 0.3</p>
+
+<p>ajNav is an open-source navigation app for electric cars, for Android phones and Android Auto. It is developed by lyzio as a non-commercial project. The source code is public at <a href="https://github.com/lyzio/ajNav-Open">github.com/lyzio/ajNav-Open</a>.</p>
+
+<h2>The short version</h2>
+<ul>
+  <li>ajNav has no accounts, no ads and no analytics of its own. The developer does not receive or store any of your data.</li>
+  <li>To show maps, plan routes and search for places, ajNav sends your location and searches to <strong>Mapbox</strong> and <strong>Photon (komoot)</strong>.</li>
+  <li>To plan charging stops, ajNav sends the shape of your planned route to <strong>Open Charge Map</strong>, and points along the route to <strong>SMHI</strong> (weather) and <strong>Open-Meteo</strong> (heights).</li>
+  <li>Mapbox's navigation library also sends anonymous usage and location data to Mapbox, which Mapbox uses to improve its maps and services.</li>
+  <li>Your settings, favourites, battery level, prices and saved chargers stay on your phone.</li>
+</ul>
+
+<h2>Data stored on your phone</h2>
+<p>ajNav stores these only on your device. They are not uploaded and not included in Android backups:</p>
+<ul>
+  <li>Your Mapbox access token and your Open Charge Map API key, encrypted with the Android Keystore.</li>
+  <li>Your Home and Work favourites, your last 10 destinations, and your navigation settings (voice, voice language, map colours).</li>
+  <li>Your charging settings: energy use, arrival and charge targets, the last battery % you typed, your preferred charging operators and the prices you entered.</li>
+  <li>Chargers fetched for your routes and the list of charging operators (from Open Charge Map), so they can be shown without signal. Saved chargers are removed after 90 days.</li>
+</ul>
+<p>Uninstalling the app deletes all of it.</p>
+
+<h2>Data sent to online services</h2>
+<p><strong>Mapbox</strong> (maps, routes, turn-by-turn voice instructions, speed limits). When you use the map or navigate, ajNav's Mapbox components send your precise location, your route's start, charging stops and destination, and basic device and app information (such as the device model and operating system version) to Mapbox. Requests use your own Mapbox access token. By default, Mapbox's navigation library also sends anonymous telemetry to Mapbox: location samples and trip events (for example start, rerouting and arrival), with a randomly generated session identifier. ajNav does not currently offer a setting to turn this off. See <a href="https://www.mapbox.com/legal/privacy">Mapbox's privacy policy</a>.</p>
+<p><strong>Photon by komoot</strong> (destination search). When you search, ajNav sends your search text and your current position (so nearby results come first) to photon.komoot.io. See <a href="https://www.komoot.com/privacy">komoot's privacy policy</a>.</p>
+<p><strong>Open Charge Map</strong> (chargers and operators). When you preview a route, ajNav sends a simplified line of the route (which includes your starting point and destination) and your own Open Charge Map API key to api.openchargemap.io, to find fast chargers within 3 km of the route. It also downloads Open Charge Map's list of charging operators. See <a href="https://openchargemap.org/site/about/terms">Open Charge Map's terms and privacy information</a>.</p>
+<p><strong>SMHI</strong> (Swedish Meteorological and Hydrological Institute; weather forecast). ajNav sends two coordinates, the middle of the route and the destination, to opendata-download-metfcst.smhi.se. No key or account is used. See <a href="https://www.smhi.se/en">smhi.se</a>.</p>
+<p><strong>Open-Meteo</strong> (heights along the route). ajNav sends points about every 5 km along the route to api.open-meteo.com. No key or account is used. See <a href="https://open-meteo.com/en/terms">Open-Meteo's terms and privacy policy</a>.</p>
+<p>The battery % you type is used only on your phone; it is not sent to any service. All connections use encryption (HTTPS).</p>
+
+<h2>Location</h2>
+<p>ajNav uses your phone's GPS to show where you are, plan routes and guide you. It uses location while the app is open, and while navigation or the Android Auto screen is running, including when the phone screen is off. When it runs in the background, Android shows a notification. ajNav does not ask for "all the time" background location access.</p>
+
+<h2>Android Auto</h2>
+<p>When you use ajNav on a car screen, Google's Android Auto app displays it. Google's own terms and privacy policy apply to Android Auto.</p>
+
+<h2>What ajNav does not do</h2>
+<ul>
+  <li>It does not sell or share your data for advertising.</li>
+  <li>It does not use an advertising ID.</li>
+  <li>It does not read your contacts, messages, photos or files.</li>
+  <li>It does not connect to your car in this version.</li>
+</ul>
+
+<h2>Children</h2>
+<p>ajNav is intended for adult drivers and is not directed at children.</p>
+
+<h2>Deleting your data</h2>
+<p>Data on your phone is deleted when you uninstall ajNav. The developer holds no data about you. For data held by the services above, contact them through the links above.</p>
+
+<h2>Changes</h2>
+<p>Later versions will add features, for example a read-only connection to the car's battery data (version 0.4). This policy will be updated before those features are released, and the date above will change.</p>
+
+<h2>Contact</h2>
+<p>Questions: open an issue at <a href="https://github.com/lyzio/ajNav-Open/issues">github.com/lyzio/ajNav-Open/issues</a>.</p>
+</main>
+<footer><div>ajNav is open source (GNU AGPL-3.0) · No Google Play Services · Bring your own keys · <a href="https://github.com/lyzio/ajNav-Open">github.com/lyzio/ajNav-Open</a></div></footer>
+</body>
+</html>
