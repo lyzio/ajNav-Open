@@ -1,4 +1,4 @@
-# Software Design Document (SDD): ajNav (v1.4)
+# Software Design Document (SDD): ajNav (v1.4.2)
 
 ## 1. Projektöversikt & Kärnprinciper
 **ajNav** är en modulär, öppen källkods-applikation för Android och Android Auto byggd för elbilsförare. Appen kombinerar turn-by-turn-navigering med realtidsdata från bilen via OBD2 (BLE), molntelemetri, dynamisk laddstoppsplanering, kostnadskalkyl, topografi/väder samt svensk trafikdata.
@@ -164,6 +164,7 @@ Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetso
 3. **Realistisk laddtid (Laddkurva + Coldgate):**
    * Integrerar laddtiden stegvis över bilprofilens `chargeCurve` (inte bara toppeffekten).
    * **Coldgate-justering:** Om `VehicleState.batteryTempCelsius` understiger bilprofilens `coldgateThresholdCelsius` (`15 °C` för Fiat 500e) skalas beräknad laddeffekt ner linjärt från 100 % vid `15 °C` till 50 % vid `0 °C` (50 % även under `0 °C`) och stoppet flaggas som `isColdgateAdjusted = true`.
+5. **v0.3-beslut (utan bilkoppling, 2026-11-26):** Basförbrukning standard **16 kWh/100 km** för Fiat 500e 42 kWh, ändringsbar i Inställningar (rullande snitt kommer med OBD i v0.4). Mål: **ankomst ≥ 10 %**, **ladda till 80 %** (båda ändringsbara). Föreslagna laddstopp visas i ruttförhandsvisningen; användaren trycker *Lägg till* för att lägga stoppet som delmål i rutten. Utan batteritemperatur används SMHI:s utetemperatur som ersättning för Coldgate och stoppet märks *uppskattad*. Batteri-% matas in manuellt vid planering.
 4. **Live-övervakning under körning:** Om faktisk förbrukning gör att beräknad ankomst-SoC sjunker under **8 %**, triggas en automatisk omsökning och användaren får en prompt att lägga till ett tidigare laddstopp.
 
 ---
@@ -214,6 +215,7 @@ GPS-navigering först, bildata (OBD) i senare versioner. Varje version ska vara 
 ---
 
 ## 6. Ändringslogg
+* **v1.4.2 (2026-11-26):** v0.3-planerare: 16 kWh/100 km standard, ankomst ≥ 10 %, ladda till 80 %, stopp läggs till av användaren, Coldgate uppskattas från SMHI-temperatur.
 * **v1.4.1 (2026-11-26):** Webbplats: flyttas från grenen `gh-pages` till `docs/` på `master` (en gren); nya sidor Hem, Färdplan/status, FAQ/support (engelska). Planerat i v0.3.
 * **v1.4 (2026-11-26):** Kartteman (grön mörk + ljus, Auto/Mörk/Ljus), logoskärm i bilen (fri körning, logotyp + hastighetsmärke) samt val av röstmotor och röstspråk. Planerat i v0.3 tillsammans med testfynd (inga delversioner: endast 0.2, 0.3 osv.).
 * **v1.3.1 (2026-11-26):** (Ingår i v0.2.) Distribution för test i bil: Googles Android Auto visar bara mallappar installerade från Google Play. Testversioner distribueras därför via Play Console (intern testning) som signerad release-AAB byggd i CI (uppladdningsnyckel i GitHub Secrets). Appen förblir fri från Google Play Services. Publik distribution (Play/F-Droid/AARE) beslutas före v1.0.
