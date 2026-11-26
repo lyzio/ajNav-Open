@@ -16,13 +16,28 @@ android {
         applicationId = "io.github.lyzio.ajnav"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
+    }
+
+    // Play upload key (v0.2.1). CI writes the keystore from GitHub secrets; it is never committed.
+    val uploadKeystore = System.getenv("ANDROID_UPLOAD_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
+    signingConfigs {
+        if (uploadKeystore != null) {
+            create("upload") {
+                storeFile = uploadKeystore
+                storeType = "PKCS12"
+                storePassword = System.getenv("ANDROID_UPLOAD_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_UPLOAD_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_UPLOAD_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (uploadKeystore != null) signingConfig = signingConfigs.getByName("upload")
         }
     }
 
