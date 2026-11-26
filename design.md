@@ -1,11 +1,11 @@
-# Software Design Document (SDD): ajNav (v1.4.4)
+# Software Design Document (SDD): ajNav (v1.5)
 
 ## 1. Projektöversikt & Kärnprinciper
 **ajNav** är en modulär, öppen källkods-applikation för Android och Android Auto byggd för elbilsförare. Appen kombinerar turn-by-turn-navigering med realtidsdata från bilen via OBD2 (BLE), molntelemetri, dynamisk laddstoppsplanering, kostnadskalkyl, topografi/väder samt svensk trafikdata.
 
 ### Arkitekturprinciper
 1. **Zero Google Play Services:** Appen får aldrig bero på `com.google.android.gms` (t.ex. `FusedLocationProviderClient` eller Google Maps). All kart-, plats- och bilskärmslogik ska fungera på de-Googled Android (GrapheneOS, LineageOS/microG). **Enda godkända undantag (2026-11-25):** `com.google.android.gms:play-services-cronet` (med dess följdberoenden `play-services-base`, `-basement`, `-tasks`) som Mapbox Common drar in. Den används bara om Google Play Services finns på telefonen och gör inget annars. CI tillåter endast dessa; alla andra `gms`/`firebase`-beroenden stoppar bygget.
-2. **BYOK (Bring Your Own Key):** Repot innehåller inga API-nycklar. Slutanvändaren matar in sina egna nycklar direkt i appens UI (med möjlighet för utvecklare att ange förval via `local.properties` vid bygge). Nyckelfria öppna API:er används som standard där det är möjligt.
+2. **BYOK (Bring Your Own Key):** Repot innehåller inga API-nycklar. Slutanvändaren matar in sina egna nycklar direkt i appens UI (med möjlighet för utvecklare att ange förval via `local.properties` vid bygge). Nyckelfria öppna API:er används som standard där det är möjligt. **Undantag (2026-11-26):** NOBIL:s villkor förbjuder direkta API-anrop från slutanvändarappar. Därför hämtar ett schemalagt GitHub Actions-jobb NOBIL-data med projektägarens nyckel (GitHub secret) och publicerar en bearbetad datafil som appen laddar ner. Nyckeln finns aldrig i appen eller repot, och användaren behöver ingen NOBIL-nyckel.
 3. **100 % Read-Only & minimal OBD2:** Appen får under inga omständigheter skicka skriv-, konfigurations- eller felkodsraderingskommandon till fordonet (kritiskt för säkerhet och Stellantis SGW-kompatibilitet). Appen läser **endast** data som behövs för laddning, förbrukning och navigering – inga felkoder (DTC), ingen fordonsdiagnostik och inga övriga OBD-anrop.
 4. **Hög modularitet:** Uppdelad i separata Gradle-moduler med tydliga gränssnitt så att communityt enkelt kan bidra med nya bilprofiler, laddkällor eller regionala API:er via Pull Requests.
 
@@ -39,10 +39,11 @@ ajnav/
 │   └── obd/                    # ObdBleManager, ReadOnlyObdGuard, VehiclePidProfile
 ├── feature/
 │   ├── vehicles/               # Bilprofiler (Fiat500e2021Profile, MockVehicleProfile, etc.)
-│   ├── charging/               # ChargingStationProvider (OCM), ChainedTariffProvider (OCPI/NAP + OCM + Sub)
+│   ├── charging/               # ChargingStationProvider (OCM + NOBIL-cache), NobilCacheRepository, ChainedTariffProvider (Sub + OCM + egna priser)
 │   ├── telemetry-cloud/        # Enode API-klient (valfri pre-trip telemetri)
 │   ├── traffic-se/             # Trafikverket Open API & SMHI Open Data (väder/störningar)
 │   └── navigation/             # Mapbox Navigation v3, Photon/Mapbox Geocoding, Open-Meteo Elevation, EvRoutePlannerUseCase
+├── tools/nobil-export/         # Skript för GitHub-jobbet: hämtar NOBIL datadump (SE+NO), bantar, publicerar på grenen `data`
 ├── local.properties.example    # Mall för MAPBOX_DOWNLOADS_TOKEN vid kompilering
 └── README.md                   # Guide för BYOK, DHU-testning och att bidra med bilprofiler
 ```
@@ -67,7 +68,7 @@ Rena domänmodeller utan Android-beroenden:
     * `MAPBOX_PUBLIC_TOKEN` (Kartor & Navigation)
     * `OCM_API_KEY` (Open Charge Map)
   * **Valfria nycklar (moduler aktiveras dynamiskt om nyckel finns):**
-    * `NAP_OCPI_API_KEY` (t.ex. NOBIL / nationell åtkomstpunkt för realtidspriser & status)
+    * ~~`NAP_OCPI_API_KEY`~~ – utgår ur appen (2026-11-26). NOBIL-nyckeln ligger endast som GitHub secret `NOBIL_API_KEY` för exportjobbet (se 4.4 C). En eventuell nyckel för Enova "NOBIL Real-time" beslutas separat (D30).
     * `ENODE_CLIENT_ID` & `ENODE_CLIENT_SECRET` (Molntelemetri före avfärd)
     * `TRAFIKVERKET_API_KEY` (Vägväder & störningar i Sverige)
   * **Nyckelfria API:er (fungerar utan konfiguration):** Photon Geocoding, Open-Meteo Elevation, SMHI Open Data.
@@ -130,9 +131,17 @@ interface VehiclePidProfile {
 #### B. Pris- och Statuskedja (`ChainedTariffProvider`)
 Beräknar pris per kWh och synkar lediga stolpar i följande strikta prioritetsordning:
 1. **User Subscription Override (Valfritt):** Om användaren registrerat ett eget medlemskap/avtal för en operatör (t.ex. Tesla-medlemskap eller Ionity Passport med eget kr/kWh-pris) används detta i första hand.
-2. **Primär live-källa (`OcpiNapTariffProvider`):** Hämtar strukturerade realtidstariffer (AFIR ad hoc-pris per kWh/minut) och live-tillgänglighet (lediga/upptagna uttag) från öppna OCPI/NAP-endpoints (t.ex. NOBIL i Norden) om nyckel är konfigurerad.
-3. **Sekundär källa (`OcmUsageCostParser`):** Extraherar numeriska kWh-priser ur OCM:s `UsageCost`-sträng om stationen saknas i OCPI/NAP-feeden.
+2. **NOBIL (Sverige + Norge, via cache):** Ger stationsdata (läge, uttag, effekt, ägare, öppettider, antal laddpunkter) men **inga priser** i API v3. Sverige rapporterar AFIR ad hoc-priser till NOBIL, men de exponeras inte i API:t i dag; Norge inför AFIR i lag först nu (Prop. 71 LS 2025–2026). Prissteget aktiveras om NOBIL/Energimyndigheten börjar lämna ut priser. Live-status (lediga/upptagna) kommer från Enovas separata tjänst "NOBIL Real-time" och är ett eget beslut (D30).
+3. **Sekundär källa (`OcmUsageCostParser`):** Extraherar numeriska kWh-priser ur OCM:s `UsageCost`-sträng om inget annat pris finns.
 4. **Fallback (`DefaultOperatorTariffProvider`):** Använder användarens manuella standardpriser per operatör eller global default (`5.50 SEK/kWh`).
+
+
+#### C. NOBIL-cache (`NobilCacheRepository` + GitHub-jobb)
+* **Exportjobb (GitHub Actions, schemalagt 1 gång/dygn):** Anropar `https://nobil.no/api/server/datadump.php` med `countrycode=SWE` och `NOR`, `format=json`, `file=false`. Behåller bara fält som appen behöver: id (`International_id`), namn, position, adress/ort, ägare, antal laddpunkter, öppet dygnet runt, tillgänglighet (publik), samt per laddpunkt: kontakttyp, effekt och laddläge. Publiceras som en komprimerad fil med datum och attribution ("NOBIL.no, CC BY 4.0") på en separat gren **`data`** (beslut 2026-11-26), så att `master` slipper dagliga bot-commits. Misslyckas hämtningen behålls gårdagens fil.
+* **Appen:** Laddar ner filen högst 1 gång/dygn (bara om den är ny), sparar i Room bredvid OCM-cachen och fungerar offline. Ingen NOBIL-nyckel i appen.
+* **Sammanslagning med OCM:** I Sverige och Norge vinner NOBIL. En OCM-station och en NOBIL-station räknas som samma om de ligger inom ca 50 m och har liknande ägare/operatör; pris-text från OCM behålls då på den sammanslagna stationen. Utanför SE/NO används bara OCM.
+* **Attribution:** "Laddstationsdata: NOBIL.no (CC BY 4.0)" i laddarvyn och under Om/Inställningar.
+* **Integritet:** Appen hämtar filen från GitHub; inga användardata skickas. Integritetspolicyn nämner GitHub som nedladdningskälla.
 
 ---
 
@@ -208,13 +217,14 @@ GPS-navigering först, bildata (OBD) i senare versioner. Varje version ska vara 
 1. **v0.1 – Mobilnavigering (endast telefon):** `settings.gradle.kts`, `libs.versions.toml`, `local.properties.example`, `README.md`, Hilt-uppsättning, `:core:model`, `:core:security` (BYOK, `MAPBOX_PUBLIC_TOKEN`), samt `:feature:navigation` (Mapbox Navigation v3, `PhotonGeocodingProvider`) med destinationssökning, karta, rutt och röststyrd turn-by-turn via telefonens egen GPS (utan Google Play Services). Minimal `:app` med Navigering- och Inställningar-flikarna. Även: favoriter Hem/Jobb, senaste destinationer (lagras lokalt i DataStore; Room tillkommer i v0.3), aktuell hastighet + hastighetsgräns (från Mapbox), filvägledning (lane guidance) samt LyzLarm-temat. *Test: kör en verklig rutt med telefonen.*
 2. **v0.2 – Android Auto:** `EvCarAppService`, `automotive_app_desc.xml`, `MainNavigationScreen`, `DestinationSearchScreen`, `QuickDestinationsScreen` (Hem/Jobb/senaste), `RoutePreviewScreen` samt synk telefon ↔ bil (se 4.7 C). *Test: direkt i den riktiga bilen (stock Android-telefon).*
 3. **v0.3 – Laddstopp utan bilkoppling:** `:feature:vehicles` (`Fiat500e2021Profile` med kapacitet och laddkurva), `:feature:charging` (`OpenChargeMapProvider`, `ChainedTariffProvider`, Room offline-cache), Open-Meteo Elevation, SMHI-väder samt `EvRoutePlannerUseCase` med **manuellt inmatad SoC %** (`TelemetrySource.MANUAL`). Flikarna Operatörer & Priser, `ChargerListScreen` i Android Auto. Dessutom från v0.2-testerna: bilpilen ritas ovanför ruttlinjen, kartteman (grön mörk + ljus, Auto/Mörk/Ljus), logoskärm i bilen samt val av röstmotor och röstspråk (se 4.7 C). Webbplatsen (GitHub Pages) flyttas till `docs/` på `master` och utökas med Hem (funktioner + skärmbilder), Färdplan/status och FAQ/support, på engelska; integritetspolicyns adress behålls. *Test: planera en verklig resa och jämför med utfallet.*
-4. **v0.4 – OBD-anslutning + NOBIL:** NOBIL live-tillgänglighet (lediga/upptagna uttag) via användarens egen NOBIL-nyckel (`OcpiNapTariffProvider`/NOBIL-klient), används i laddarrankningen. **OBD:** `:core:obd` (`ObdBleManager`, `ReadOnlyObdGuard`), Fiat-profilens `pollingCommands`, `MockVehicleProfile`, `VehicleTelemetryService` (ForegroundService, WakeLock, BLE-behörigheter) och Dashboard-fliken med live-data. Manuell SoC finns kvar som reserv. *Test: anslut till Fiat 500e och verifiera avläsningar (inkl. PID:ar markerade "alt.").*
+4. **v0.4 – OBD-anslutning + NOBIL-data:** NOBIL-stationsdata för Sverige och Norge via GitHub-cache (se 4.4 C), sammanslagen med OCM och använd i laddarrankningen. Live-status via Enova är inte med förrän villkoren är granskade (D30). **OBD:** `:core:obd` (`ObdBleManager`, `ReadOnlyObdGuard`), Fiat-profilens `pollingCommands`, `MockVehicleProfile`, `VehicleTelemetryService` (ForegroundService, WakeLock, BLE-behörigheter) och Dashboard-fliken med live-data. Manuell SoC finns kvar som reserv. *Test: anslut till Fiat 500e och verifiera avläsningar (inkl. PID:ar markerade "alt.").*
 5. **v0.5 – Live-planering:** Live-data matar `EvRoutePlannerUseCase` (viktad förbrukning, omplanering vid < 8 %, Coldgate-justering), live-värden i Android Auto, `TrafikverketClient` samt valfri `EnodeClient`. *Test: verkliga resor.*
 6. **v1.0 – Release** efter verifierade tester i bil.
 
 ---
 
 ## 6. Ändringslogg
+* **v1.5 (2026-11-26):** NOBIL-genomgång (API v3, rev. 2026-08-16): inga priser i API:t, live-status är en separat Enova-tjänst och villkoren förbjuder direktanrop från appar. Beslut: NOBIL via schemalagd GitHub-cache på grenen `data` (ny 4.4 C), `NAP_OCPI_API_KEY` utgår ur appen, prissteg 2 vilande tills priser exponeras, live-status beslutas efter granskning av Enovas villkor.
 * **v1.4.4 (2026-11-26, bygget av v0.3):** SMHI-adressen byts till `snow1g/version/1` (gamla `pmp3g` avvecklad 2026-03-31). Tekniska detaljer från bygget: (1) OCM hämtas utan `operatorid`; "Endast valda" filtreras i appen, så byte av läge kräver ingen ny hämtning. Rutten förenklas och delas i bitar om ca 100 km så att varje anrop håller sig under 100 träffar. (2) Väderpåslag: kyla under 2 °C +10 % (upp till +15 % vid −10 °C), nederbörd +5 %, motvind > 10 m/s +5 %, max +25 %. (3) Utförsbacke: återvunnen energi = m·g·Δh·0,65 (multiplicerat, inte dividerat). (4) Laddkostnad räknas på batteri-kWh (inga laddförluster). (5) Laddare utan angiven effekt räknas som 50 kW. (6) Höjder (Open-Meteo) ligger i `:feature:charging`, eftersom planeraren behöver dem; `:feature:navigation` beror på `:feature:charging`.
 * **v1.4.3 (2026-11-26):** NOBIL live-tillgänglighet flyttas till v0.4 (v0.3 använder OCM + egna priser).
 * **v1.4.2 (2026-11-26):** v0.3-planerare: 16 kWh/100 km standard, ankomst ≥ 10 %, ladda till 80 %, stopp läggs till av användaren, Coldgate uppskattas från SMHI-temperatur.
