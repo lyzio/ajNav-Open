@@ -229,7 +229,7 @@ class ChargingPlanService @Inject constructor(
             if (p.offsetM <= CORRIDOR_KEEP_M) CorridorCharger(st, p.distanceAlongM, p.offsetM) else null
         }.sortedBy { it.distanceAlongM }
 
-    /** Simplified route split into pieces of about 150 km, so no request hits OCM's result cap. */
+    /** Simplified route split into pieces of about 100 km, so no request hits OCM's result cap. */
     private fun chunks(geometry: RouteGeometry): List<List<GeoPoint>> {
         val simple = PolylineCodec.simplify(geometry.points, SIMPLIFY_TOLERANCE_M)
         val out = ArrayList<List<GeoPoint>>()
@@ -260,7 +260,7 @@ class ChargingPlanService @Inject constructor(
         const val NO_KEY = "Add your free Open Charge Map key in Settings to find chargers."
         private const val CORRIDOR_KM = 3
         private const val CORRIDOR_KEEP_M = 3_500.0
-        private const val CHUNK_M = 150_000.0
+        private const val CHUNK_M = 100_000.0
         private const val SIMPLIFY_TOLERANCE_M = 150.0
         private const val CACHE_MAX_AGE_MS = 90L * 24 * 3600 * 1000
         private const val OPERATORS_MAX_AGE_MS = 30L * 24 * 3600 * 1000

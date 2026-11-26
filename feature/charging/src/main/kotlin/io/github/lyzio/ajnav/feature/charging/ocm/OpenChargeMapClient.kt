@@ -50,7 +50,7 @@ class OpenChargeMapClient @Inject constructor(
             header("X-API-Key", key)
             parameter("polyline", PolylineCodec.encode(line))
             parameter("distance", distanceKm)
-            parameter("distanceunit", "km")
+            parameter("distanceunit", "KM")
             parameter("connectiontypeid", CCS2)
             parameter("levelid", DC_FAST)
             parameter("statustypeid", OPERATIONAL)
