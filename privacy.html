@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ajNav – Privacy policy</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; line-height: 1.6; color: #e8eef2; background: #0e1418; }
+  h1 { color: #4fb3a9; font-size: 1.8rem; margin-bottom: 0.2rem; }
+  h2 { color: #4fb3a9; font-size: 1.15rem; margin-top: 2rem; }
+  a { color: #e8735a; }
+  .muted { color: #7e8a93; font-size: 0.9rem; }
+  ul { padding-left: 1.2rem; }
+</style>
+</head>
+<body>
+<h1>ajNav – Privacy policy</h1>
+<p class="muted">Last updated: 26 November 2026 · Applies to ajNav version 0.2.x</p>
+
+<p>ajNav is an open-source navigation app for electric cars, for Android phones and Android Auto. It is developed by lyzio as a non-commercial project. The source code is public at <a href="https://github.com/lyzio/ajNav-Open">github.com/lyzio/ajNav-Open</a>.</p>
+
+<h2>The short version</h2>
+<ul>
+  <li>ajNav has no accounts, no ads and no analytics of its own. The developer does not receive or store any of your data.</li>
+  <li>To show maps, plan routes and search for places, ajNav sends your location and searches to two map services: <strong>Mapbox</strong> and <strong>Photon (komoot)</strong>.</li>
+  <li>Mapbox's navigation library also sends anonymous usage and location data to Mapbox, which Mapbox uses to improve its maps and services.</li>
+  <li>Your settings, favourites and recent destinations stay on your phone.</li>
+</ul>
+
+<h2>Data stored on your phone</h2>
+<p>ajNav stores these only on your device. They are not uploaded and not included in Android backups:</p>
+<ul>
+  <li>Your Mapbox access token, encrypted with the Android Keystore.</li>
+  <li>Your Home and Work favourites, your last 10 destinations, and the voice on/off setting.</li>
+</ul>
+<p>Uninstalling the app deletes all of it.</p>
+
+<h2>Data sent to map services</h2>
+<p><strong>Mapbox</strong> (maps, routes, turn-by-turn voice instructions, speed limits). When you use the map or navigate, ajNav's Mapbox components send your precise location, your route's start and destination, and basic device and app information (such as the device model and operating system version) to Mapbox. Requests use your own Mapbox access token. By default, Mapbox's navigation library also sends anonymous telemetry to Mapbox: location samples and trip events (for example start, rerouting and arrival), with a randomly generated session identifier. ajNav does not currently offer a setting to turn this off. See <a href="https://www.mapbox.com/legal/privacy">Mapbox's privacy policy</a>.</p>
+<p><strong>Photon by komoot</strong> (destination search). When you search, ajNav sends your search text and your current position (so nearby results come first) to photon.komoot.io. See <a href="https://www.komoot.com/privacy">komoot's privacy policy</a>.</p>
+<p>All connections use encryption (HTTPS).</p>
+
+<h2>Location</h2>
+<p>ajNav uses your phone's GPS to show where you are, plan routes and guide you. It uses location while the app is open, and while navigation or the Android Auto screen is running, including when the phone screen is off. When it runs in the background, Android shows a notification. ajNav does not ask for "all the time" background location access.</p>
+
+<h2>Android Auto</h2>
+<p>When you use ajNav on a car screen, Google's Android Auto app displays it. Google's own terms and privacy policy apply to Android Auto.</p>
+
+<h2>What ajNav does not do</h2>
+<ul>
+  <li>It does not sell or share your data for advertising.</li>
+  <li>It does not use an advertising ID.</li>
+  <li>It does not read your contacts, messages, photos or files.</li>
+  <li>It does not connect to your car's diagnostics in this version.</li>
+</ul>
+
+<h2>Children</h2>
+<p>ajNav is intended for adult drivers and is not directed at children.</p>
+
+<h2>Deleting your data</h2>
+<p>Data on your phone is deleted when you uninstall ajNav. The developer holds no data about you. For data held by Mapbox or komoot, contact them through the links above.</p>
+
+<h2>Changes</h2>
+<p>Later versions will add features (for example charging stops and a connection to the car's battery data). This policy will be updated before those features are released, and the date above will change.</p>
+
+<h2>Contact</h2>
+<p>Questions: open an issue at <a href="https://github.com/lyzio/ajNav-Open/issues">github.com/lyzio/ajNav-Open/issues</a>.</p>
+</body>
+</html>
