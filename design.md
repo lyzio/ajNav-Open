@@ -1,4 +1,4 @@
-# Software Design Document (SDD): ajNav (v1.4.2)
+# Software Design Document (SDD): ajNav (v1.4.3)
 
 ## 1. Projektöversikt & Kärnprinciper
 **ajNav** är en modulär, öppen källkods-applikation för Android och Android Auto byggd för elbilsförare. Appen kombinerar turn-by-turn-navigering med realtidsdata från bilen via OBD2 (BLE), molntelemetri, dynamisk laddstoppsplanering, kostnadskalkyl, topografi/väder samt svensk trafikdata.
@@ -208,13 +208,14 @@ GPS-navigering först, bildata (OBD) i senare versioner. Varje version ska vara 
 1. **v0.1 – Mobilnavigering (endast telefon):** `settings.gradle.kts`, `libs.versions.toml`, `local.properties.example`, `README.md`, Hilt-uppsättning, `:core:model`, `:core:security` (BYOK, `MAPBOX_PUBLIC_TOKEN`), samt `:feature:navigation` (Mapbox Navigation v3, `PhotonGeocodingProvider`) med destinationssökning, karta, rutt och röststyrd turn-by-turn via telefonens egen GPS (utan Google Play Services). Minimal `:app` med Navigering- och Inställningar-flikarna. Även: favoriter Hem/Jobb, senaste destinationer (lagras lokalt i DataStore; Room tillkommer i v0.3), aktuell hastighet + hastighetsgräns (från Mapbox), filvägledning (lane guidance) samt LyzLarm-temat. *Test: kör en verklig rutt med telefonen.*
 2. **v0.2 – Android Auto:** `EvCarAppService`, `automotive_app_desc.xml`, `MainNavigationScreen`, `DestinationSearchScreen`, `QuickDestinationsScreen` (Hem/Jobb/senaste), `RoutePreviewScreen` samt synk telefon ↔ bil (se 4.7 C). *Test: direkt i den riktiga bilen (stock Android-telefon).*
 3. **v0.3 – Laddstopp utan bilkoppling:** `:feature:vehicles` (`Fiat500e2021Profile` med kapacitet och laddkurva), `:feature:charging` (`OpenChargeMapProvider`, `ChainedTariffProvider`, Room offline-cache), Open-Meteo Elevation, SMHI-väder samt `EvRoutePlannerUseCase` med **manuellt inmatad SoC %** (`TelemetrySource.MANUAL`). Flikarna Operatörer & Priser, `ChargerListScreen` i Android Auto. Dessutom från v0.2-testerna: bilpilen ritas ovanför ruttlinjen, kartteman (grön mörk + ljus, Auto/Mörk/Ljus), logoskärm i bilen samt val av röstmotor och röstspråk (se 4.7 C). Webbplatsen (GitHub Pages) flyttas till `docs/` på `master` och utökas med Hem (funktioner + skärmbilder), Färdplan/status och FAQ/support, på engelska; integritetspolicyns adress behålls. *Test: planera en verklig resa och jämför med utfallet.*
-4. **v0.4 – OBD-anslutning:** `:core:obd` (`ObdBleManager`, `ReadOnlyObdGuard`), Fiat-profilens `pollingCommands`, `MockVehicleProfile`, `VehicleTelemetryService` (ForegroundService, WakeLock, BLE-behörigheter) och Dashboard-fliken med live-data. Manuell SoC finns kvar som reserv. *Test: anslut till Fiat 500e och verifiera avläsningar (inkl. PID:ar markerade "alt.").*
+4. **v0.4 – OBD-anslutning + NOBIL:** NOBIL live-tillgänglighet (lediga/upptagna uttag) via användarens egen NOBIL-nyckel (`OcpiNapTariffProvider`/NOBIL-klient), används i laddarrankningen. **OBD:** `:core:obd` (`ObdBleManager`, `ReadOnlyObdGuard`), Fiat-profilens `pollingCommands`, `MockVehicleProfile`, `VehicleTelemetryService` (ForegroundService, WakeLock, BLE-behörigheter) och Dashboard-fliken med live-data. Manuell SoC finns kvar som reserv. *Test: anslut till Fiat 500e och verifiera avläsningar (inkl. PID:ar markerade "alt.").*
 5. **v0.5 – Live-planering:** Live-data matar `EvRoutePlannerUseCase` (viktad förbrukning, omplanering vid < 8 %, Coldgate-justering), live-värden i Android Auto, `TrafikverketClient` samt valfri `EnodeClient`. *Test: verkliga resor.*
 6. **v1.0 – Release** efter verifierade tester i bil.
 
 ---
 
 ## 6. Ändringslogg
+* **v1.4.3 (2026-11-26):** NOBIL live-tillgänglighet flyttas till v0.4 (v0.3 använder OCM + egna priser).
 * **v1.4.2 (2026-11-26):** v0.3-planerare: 16 kWh/100 km standard, ankomst ≥ 10 %, ladda till 80 %, stopp läggs till av användaren, Coldgate uppskattas från SMHI-temperatur.
 * **v1.4.1 (2026-11-26):** Webbplats: flyttas från grenen `gh-pages` till `docs/` på `master` (en gren); nya sidor Hem, Färdplan/status, FAQ/support (engelska). Planerat i v0.3.
 * **v1.4 (2026-11-26):** Kartteman (grön mörk + ljus, Auto/Mörk/Ljus), logoskärm i bilen (fri körning, logotyp + hastighetsmärke) samt val av röstmotor och röstspråk. Planerat i v0.3 tillsammans med testfynd (inga delversioner: endast 0.2, 0.3 osv.).
